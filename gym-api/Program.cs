@@ -1,31 +1,61 @@
 using gym_api.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// =======================
+// 資料庫設定
+// =======================
 builder.Services.AddDbContext<dbFitness2Context>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Fitness2Connection"));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("Fitness2Connection")
+    );
 });
 
+// =======================
+//  CORS 設定（給 Vue 用）
+// =======================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowVue",
+        policy =>
+        {
+            policy
+                .WithOrigins(
+                    "http://localhost:5173" // Vite
+                                   )
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
+
+// =======================
+// Controller & JSON 設定
+// =======================
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // 配置 JSON 序列化時忽略循環參照
-        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        // 忽略循環參照（EF 關聯很重要）
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 
+        // JSON 深度
         options.JsonSerializerOptions.MaxDepth = 64;
 
+        // 保留 C# 屬性命名（不轉 camelCase）
         options.JsonSerializerOptions.PropertyNamingPolicy = null;
     });
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+// =======================
+//  Swagger
+// =======================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -33,6 +63,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowVue");
 
 app.UseAuthorization();
 
