@@ -1,0 +1,89 @@
+﻿@model IEnumerable<gym_api.Models.TMeal>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.FMealName)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FDescription)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FImageUrl)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FCalories)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FCarbs)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FProtein)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FFat)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FPrice)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FIsActive)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FCategory)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.FMealName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FDescription)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FImageUrl)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FCalories)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FCarbs)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FProtein)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FFat)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FPrice)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FIsActive)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FCategory.FCategoryName)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.FMealId">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.FMealId">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.FMealId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>

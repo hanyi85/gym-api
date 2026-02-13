@@ -1,0 +1,285 @@
+﻿{
+   "CodeGenerationMode": 4,
+   "ContextClassName": "dbFitness2Context",
+   "ContextNamespace": null,
+   "FilterSchemas": false,
+   "IncludeConnectionString": false,
+   "IrregularWords": null,
+   "MinimumProductVersion": "2.6.1301",
+   "ModelNamespace": null,
+   "OutputContextPath": null,
+   "OutputPath": "Models",
+   "PluralRules": null,
+   "PreserveCasingWithRegex": true,
+   "ProjectRootNamespace": "gym_api",
+   "Schemas": null,
+   "SelectedHandlebarsLanguage": 2,
+   "SelectedToBeGenerated": 0,
+   "SingularRules": null,
+   "T4TemplatePath": null,
+   "Tables": [
+      {
+         "Name": "[dbo].[cCity]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cCoachBookings]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cCoachSchedules]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cCoachTimeSlots]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cCourseBookings]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cCourseCategory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cCourses]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cCourseSchedules]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cDiscounts]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cReviews]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cReviewTagMap]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cReviewTags]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[cVenues]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sCart]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sCategory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sComment]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sDiscount]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sImage]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sOrder]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sOrderDetail]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sPayment]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sProduct]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sShipper]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sSpecification]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[sSupplier]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[tMeal]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[tMealCategory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[tMealEverydayMenu]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[tMealFavoriteMeal]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[tMealOrder]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[tMealOrderItem]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[tMealPickUpTime]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uCoach]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uCoachSkill]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uCouchDeactivateLog]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uDairy]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uDairyDetail]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uDietType]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uExerciseItem]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uExerciseRecord]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uExerciseType]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uFood]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uFoodCategory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uUser]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uUserDeactivateLog]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uUserHealthProfile]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[uUserWeightRecord]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yCustomerService]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yFAQ]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yImage]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yImageRelation]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yJoinForm]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yPost]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yPostCategory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yPostEvent]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yPostLike]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yPostTagMapping]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yQuestionCategory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[yTag]",
+         "ObjectType": 0
+      }
+   ],
+   "UiHint": null,
+   "UncountableWords": null,
+   "UseAsyncStoredProcedureCalls": true,
+   "UseBoolPropertiesWithoutDefaultSql": false,
+   "UseDatabaseNames": false,
+   "UseDatabaseNamesForRoutines": true,
+   "UseDateOnlyTimeOnly": true,
+   "UseDbContextSplitting": false,
+   "UseDecimalDataAnnotationForSprocResult": true,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseHierarchyId": false,
+   "UseInflector": true,
+   "UseInternalAccessModifiersForSprocsAndFunctions": false,
+   "UseLegacyPluralizer": false,
+   "UseManyToManyEntity": false,
+   "UseNoDefaultConstructor": false,
+   "UseNoNavigations": false,
+   "UseNoObjectFilter": false,
+   "UseNodaTime": false,
+   "UseNullableReferences": false,
+   "UsePrefixNavigationNaming": false,
+   "UseSchemaFolders": false,
+   "UseSchemaNamespaces": false,
+   "UseSpatial": false,
+   "UseT4": false,
+   "UseT4Split": false
+}
