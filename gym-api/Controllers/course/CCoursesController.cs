@@ -13,7 +13,7 @@ namespace gym_api.Controllers.course
     [Tags("課程管理")] 
     public class CCoursesController : ControllerBase
     {
-        private readonly dbFitness2Context _context;
+               private readonly dbFitness2Context _context;
 
         public CCoursesController(dbFitness2Context context)
         {
@@ -112,5 +112,52 @@ namespace gym_api.Controllers.course
         {
             return _context.CCourses.Any(e => e.CourseId == id);
         }
+
+
+        [HttpGet("search")]
+        public async Task<IActionResult> SearchCourses(
+    [FromQuery] string city,
+    [FromQuery] string venue)
+        {
+            // 1️⃣ city（中文）
+            var cityEntity = await _context.CCities
+                .FirstOrDefaultAsync(c => c.CityName == city);
+
+            if (cityEntity == null)
+                return NotFound("City not found");
+
+            // 2️⃣ venue（中文）
+            var venueEntity = await _context.CVenues
+                .FirstOrDefaultAsync(v =>
+                    v.CityId == cityEntity.CityId &&
+                    v.VenueName == venue
+                );
+
+            if (venueEntity == null)
+                return NotFound("Venue not found");
+
+            // 3️⃣ 課程
+            var courses = await _context.CCourses
+                .Include(c => c.Category)
+                .Include(c => c.Venue)
+                .Where(c => c.VenueId == venueEntity.VenueId)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                city = new
+                {
+                    id = cityEntity.CityId,
+                    name = cityEntity.CityName
+                },
+                venue = new
+                {
+                    id = venueEntity.VenueId,
+                    name = venueEntity.VenueName
+                },
+                courses
+            });
+        }
+
     }
 }
