@@ -1,10 +1,11 @@
-﻿using System;
+﻿using gym_api.Models;
+using gym_api.Models.CourseDTOs;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using gym_api.Models;
 
 namespace gym_api.Controllers.course
 {
@@ -170,6 +171,37 @@ namespace gym_api.Controllers.course
                 courses
             });
         }
+
+        [HttpGet("{id}/detail")]
+        public async Task<IActionResult> GetCourseDetail(int id)
+        {
+            var course = await _context.CCourses
+                .Where(c => c.CourseId == id)
+                .Select(c => new CourseDetailDto
+                {
+                    Id = c.CourseId,
+                    Title = c.CourseName,
+                    Category = c.Category.CategoryName,
+                    Duration = c.Duration,
+                    Price = c.Price,
+                    Description = c.Description,
+
+                    CoachName = (
+                        from cs in _context.CCourseSchedules
+                        join coach in _context.UCoaches
+                            on cs.CoachId equals coach.CoachId
+                        where cs.CourseId == c.CourseId && cs.IsDeleted == false
+                        select coach.Name
+                    ).FirstOrDefault() ?? ""
+                })
+                .FirstOrDefaultAsync();
+
+            if (course == null)
+                return NotFound();
+
+            return Ok(course);
+        }
+
 
     }
 
