@@ -1,0 +1,79 @@
+﻿@model gym_api.Models.TMealOrder
+
+@{
+    ViewData["Title"] = "Edit";
+}
+
+<h1>Edit</h1>
+
+<h4>TMealOrder</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Edit">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <input type="hidden" asp-for="FOrderId" />
+            <div class="form-group">
+                <label asp-for="FUserId" class="control-label"></label>
+                <select asp-for="FUserId" class="form-control" asp-items="ViewBag.FUserId"></select>
+                <span asp-validation-for="FUserId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FOrderName" class="control-label"></label>
+                <input asp-for="FOrderName" class="form-control" />
+                <span asp-validation-for="FOrderName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FOrderPhone" class="control-label"></label>
+                <input asp-for="FOrderPhone" class="form-control" />
+                <span asp-validation-for="FOrderPhone" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FOrderEmail" class="control-label"></label>
+                <input asp-for="FOrderEmail" class="form-control" />
+                <span asp-validation-for="FOrderEmail" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FCartCreateAt" class="control-label"></label>
+                <input asp-for="FCartCreateAt" class="form-control" />
+                <span asp-validation-for="FCartCreateAt" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FOrderAt" class="control-label"></label>
+                <input asp-for="FOrderAt" class="form-control" />
+                <span asp-validation-for="FOrderAt" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FVenueId" class="control-label"></label>
+                <select asp-for="FVenueId" class="form-control" asp-items="ViewBag.FVenueId"></select>
+                <span asp-validation-for="FVenueId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FTotalAmount" class="control-label"></label>
+                <input asp-for="FTotalAmount" class="form-control" />
+                <span asp-validation-for="FTotalAmount" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FOrderStatus" class="control-label"></label>
+                <input asp-for="FOrderStatus" class="form-control" />
+                <span asp-validation-for="FOrderStatus" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FPayMethod" class="control-label"></label>
+                <input asp-for="FPayMethod" class="form-control" />
+                <span asp-validation-for="FPayMethod" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

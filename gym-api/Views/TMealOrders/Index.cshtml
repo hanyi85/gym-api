@@ -1,0 +1,89 @@
+﻿@model IEnumerable<gym_api.Models.TMealOrder>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.FOrderName)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FOrderPhone)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FOrderEmail)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FCartCreateAt)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FOrderAt)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FTotalAmount)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FOrderStatus)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FPayMethod)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FUser)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FVenue)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.FOrderName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FOrderPhone)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FOrderEmail)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FCartCreateAt)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FOrderAt)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FTotalAmount)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FOrderStatus)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FPayMethod)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FUser.Account)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FVenue.Address)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.FOrderId">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.FOrderId">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.FOrderId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>
