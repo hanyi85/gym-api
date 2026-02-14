@@ -116,17 +116,17 @@ namespace gym_api.Controllers.course
 
         [HttpGet("search")]
         public async Task<IActionResult> SearchCourses(
-    [FromQuery] string city,
-    [FromQuery] string venue)
+      [FromQuery] string city,
+      [FromQuery] string venue)
         {
-            // 1️⃣ city（中文）
+            //  city
             var cityEntity = await _context.CCities
                 .FirstOrDefaultAsync(c => c.CityName == city);
 
             if (cityEntity == null)
                 return NotFound("City not found");
 
-            // 2️⃣ venue（中文）
+            // 2venue
             var venueEntity = await _context.CVenues
                 .FirstOrDefaultAsync(v =>
                     v.CityId == cityEntity.CityId &&
@@ -136,11 +136,23 @@ namespace gym_api.Controllers.course
             if (venueEntity == null)
                 return NotFound("Venue not found");
 
-            // 3️⃣ 課程
+           
             var courses = await _context.CCourses
-                .Include(c => c.Category)
-                .Include(c => c.Venue)
-                .Where(c => c.VenueId == venueEntity.VenueId)
+                .Where(c =>
+                    c.VenueId == venueEntity.VenueId &&
+                    !c.IsDeleted
+                )
+                .Select(c => new
+                {
+                    id = c.CourseId,
+                    name = c.CourseName,
+                    courseLevel = c.Courselevel,
+                    price = c.Price,
+                    duration = c.Duration,
+                    imageUrl = c.FImageUrl,
+                    categoryId = c.CategoryId,
+                    categoryName = c.Category.CategoryName
+                })
                 .ToListAsync();
 
             return Ok(new
@@ -160,4 +172,5 @@ namespace gym_api.Controllers.course
         }
 
     }
+
 }
