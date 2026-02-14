@@ -172,11 +172,11 @@ namespace gym_api.Controllers.course
             });
         }
 
-        [HttpGet("{id}/detail")]
-        public async Task<IActionResult> GetCourseDetail(int id)
+        [HttpGet("by-name/{name}")]
+        public async Task<IActionResult> GetByName(string name)
         {
             var course = await _context.CCourses
-                .Where(c => c.CourseId == id)
+                .Where(c => c.CourseName == name && !c.IsDeleted)
                 .Select(c => new CourseDetailDto
                 {
                     Id = c.CourseId,
