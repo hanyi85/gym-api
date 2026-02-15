@@ -11,10 +11,10 @@ namespace gym_api.Controllers.course
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Tags("課程管理")] 
+    [Tags("課程管理")]
     public class CCoursesController : ControllerBase
     {
-               private readonly dbFitness2Context _context;
+        private readonly dbFitness2Context _context;
 
         public CCoursesController(dbFitness2Context context)
         {
@@ -137,7 +137,7 @@ namespace gym_api.Controllers.course
             if (venueEntity == null)
                 return NotFound("Venue not found");
 
-           
+
             var courses = await _context.CCourses
                 .Where(c =>
                     c.VenueId == venueEntity.VenueId &&
@@ -201,8 +201,45 @@ namespace gym_api.Controllers.course
 
             return Ok(course);
         }
+        [HttpGet("{courseId}/schedules")]
+        public async Task<IActionResult> GetAvailableSchedules(int courseId)
+        {
+            var now = DateTime.Now;
+
+        
+            var schedules = await _context.CCourseSchedules
+                .Where(s =>
+                    s.CourseId == courseId &&
+                    !s.IsDeleted &&
+                    s.Status == "Open"
+                )
+                .ToListAsync();
+
+          
+            var result = schedules
+                
+                .Where(s => s.StartTime >= now.AddDays(-1))
+                .GroupBy(s => s.StartTime.Date)
+                .Select(g => new
+                {
+                    date = g.Key.ToString("yyyy-MM-dd"),
+                    slots = g.Select(s => new
+                    {
+                        scheduleId = s.ScheduleId,
+                        time = s.StartTime.ToString("HH:mm"),
+                        full = s.CurrentCapacity >= s.MaxCapacity,
+                        canEnroll = s.EnrollDeadline == null || s.EnrollDeadline >= now
+                    })
+                    .OrderBy(x => x.time)
+                    .ToList()
+                })
+                .OrderBy(x => x.date)
+                .ToList();
+
+            return Ok(result);
+        }
+
 
 
     }
-
 }
