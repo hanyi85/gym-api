@@ -45,6 +45,22 @@ namespace gym_api.Controllers.meal
             return tMeal;
         }
 
+        // GET: api/TMeals?categoryId=1
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<TMeal>>> GetTMeals([FromQuery] int? categoryId)
+        {
+            var query = _context.TMeals
+                .Include(t => t.FCategory)
+                .Where(t => t.FIsActive);
+
+            if (categoryId.HasValue)
+            {
+                query = query.Where(t => t.FCategoryId == categoryId.Value);
+            }
+
+            return await query.ToListAsync();
+        }
+
         // POST: api/TMeals
         [HttpPost]
         public async Task<ActionResult<TMeal>> PostTMeal(TMeal tMeal)
