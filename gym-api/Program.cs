@@ -68,6 +68,10 @@ app.UseCors("AllowVue");
 
 app.UseAuthorization();
 
+//¹Ï¤ù
+app.UseStaticFiles();
+
+
 app.MapControllers();
 
 app.Run();
