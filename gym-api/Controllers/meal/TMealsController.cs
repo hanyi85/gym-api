@@ -21,13 +21,13 @@ namespace gym_api.Controllers.meal
         }
 
         // GET: api/TMeals
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<TMeal>>> GetTMeals()
-        {
-            return await _context.TMeals
-                .Include(t => t.FCategory)
-                .ToListAsync();
-        }
+        //[HttpGet]
+        //public async Task<ActionResult<IEnumerable<TMeal>>> GetTMeals()
+        //{
+        //    return await _context.TMeals
+        //        .Include(t => t.FCategory)
+        //        .ToListAsync();
+        //}
 
         // GET: api/TMeals/5
         [HttpGet("{id}")]

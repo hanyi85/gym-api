@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using gym_api.Models;
+using gym_api.DTOs;
 
 namespace gym_api.Controllers.meal
 {
@@ -48,13 +49,19 @@ namespace gym_api.Controllers.meal
         // 🔥 依照使用者查詢（給 Vue 用很重要）
         // GET: api/TMealFavoriteMeals/user/3
         [HttpGet("user/{userId}")]
-        public async Task<ActionResult<IEnumerable<TMealFavoriteMeal>>> GetByUser(int userId)
+        public async Task<ActionResult<IEnumerable<TMeal>>> GetByUser(int userId)
         {
-            return await _context.TMealFavoriteMeals
-                .Include(t => t.FMeal)
-                .Where(x => x.FUserId == userId)
-                .ToListAsync();
+            var meals = await _context.TMealFavoriteMeals
+         .Include(x => x.FMeal)
+         .Where(x => x.FUserId == userId)
+         .Select(x => x.FMeal)
+         .Where(m => m.FIsActive)
+         .ToListAsync();
+
+            return Ok(meals);
         }
+
+
 
         // POST: api/TMealFavoriteMeals
         [HttpPost]
@@ -109,5 +116,33 @@ namespace gym_api.Controllers.meal
 
             return NoContent();
         }
+
+        [HttpPost("toggle")]
+        public async Task<ActionResult> ToggleFavorite([FromBody] MealFavoriteDto dto)
+        {
+            var existing = await _context.TMealFavoriteMeals
+                .FirstOrDefaultAsync(f => f.FUserId == dto.FUserId && f.FMealId == dto.FMealId);
+
+            if (existing != null)
+            {
+                _context.TMealFavoriteMeals.Remove(existing);
+                await _context.SaveChangesAsync();
+                return Ok(new { isFavorite = false });
+            }
+
+            var newFavorite = new TMealFavoriteMeal
+            {
+                FUserId = dto.FUserId,
+                FMealId = dto.FMealId,
+                FCreatedAt = DateTime.Now
+            };
+
+            _context.TMealFavoriteMeals.Add(newFavorite);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { isFavorite = true });
+        }
+
+
     }
 }
