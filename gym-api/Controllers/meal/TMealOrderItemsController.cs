@@ -116,6 +116,27 @@ namespace gym_api.Controllers.meal
 
             return NoContent();
         }
+
+        //  依會員查詢明細（Vue 必用）
+        // GET: api/TMealOrderItems/user/{userId}
+        [HttpGet("user/{userId}")]
+        public async Task<ActionResult<IEnumerable<TMealOrderItem>>> GetOrderItemsByUser(int userId)
+        {
+            var items = await _context.TMealOrderItems
+                .Include(i => i.FMeal)        // 關聯餐點
+                .Include(i => i.FPickTime)    // 關聯取餐時段
+                .Include(i => i.FOrder)       // 關聯訂單 (用來過濾會員)
+                .Where(i => i.FOrder.FUserId == userId)   // 依會員過濾
+                .OrderByDescending(i => i.FOrder.FOrderAt)
+                .ToListAsync();
+
+            if (items == null || !items.Any())
+            {
+                return NotFound();
+            }
+
+            return Ok(items);
+        }
     }
 }
 
