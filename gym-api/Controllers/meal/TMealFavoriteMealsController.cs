@@ -143,6 +143,18 @@ namespace gym_api.Controllers.meal
             return Ok(new { isFavorite = true });
         }
 
+        // 🔥 只回傳餐點 ID 給 Vue 用（給 Vue 用很重要）
+        [HttpGet("user/{userId}/ids")]
+        public async Task<ActionResult<IEnumerable<int>>> GetFavoriteIds(int userId)
+        {
+            var ids = await _context.TMealFavoriteMeals
+                .Where(x => x.FUserId == userId)
+                .Select(x => x.FMealId)
+                .ToListAsync();
+
+            return Ok(ids);
+        }
+
 
     }
 }
