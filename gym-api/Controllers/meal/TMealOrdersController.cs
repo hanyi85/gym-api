@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using gym_api.Models;
+using gym_api.DTOs;
 
 namespace gym_api.Controllers.meal
 {
@@ -110,6 +111,21 @@ namespace gym_api.Controllers.meal
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        //取得取餐分店
+        // GET: api/MealVenues
+        [HttpGet("MealVenues")]
+        public async Task<ActionResult<IEnumerable<MealVenueDto>>> GetVrnues()
+        {
+            return await _context.CVenues
+         .Select(v => new MealVenueDto
+         {
+             VenueId = v.VenueId,
+             VenueName = v.VenueName
+         })
+         .ToListAsync();
+
         }
     }
 }
