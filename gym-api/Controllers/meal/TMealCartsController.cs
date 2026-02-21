@@ -96,5 +96,19 @@ namespace gym_api.Controllers.meal
 
             return Ok(result);
         }
+
+        [HttpDelete("item/{orderitemid}")]
+        public async Task<IActionResult> DeleteItem(int orderitemid)
+        {
+            var item = await _context.TMealOrderItems.FindAsync(orderitemid);
+
+            if (item == null)
+                return NotFound();
+
+            _context.TMealOrderItems.Remove(item);
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
     }
 }
