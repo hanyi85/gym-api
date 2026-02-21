@@ -21,7 +21,7 @@ namespace gym_api.Controllers.meal
             _context = context;
         }
 
-        // GET: api/TMealCarts/MealAddToCart
+        // POST: api/TMealCarts/MealAddToCart
         [HttpPost("MealAddToCart")]
         public async Task<IActionResult> AddToCart(MealAddToCartDto dto)
         {
@@ -61,6 +61,40 @@ namespace gym_api.Controllers.meal
             await _context.SaveChangesAsync();
 
             return Ok();
+        }
+
+        // POST: api/Cartt/{userId}
+        [HttpGet("Cart/{userId}")]
+        public async Task<IActionResult> GetCart(int userId)
+        {
+            //var userId = GetUserId();
+
+            var order = await _context.TMealOrders
+                .Include(o => o.TMealOrderItems)
+                .ThenInclude(i => i.FMeal)
+                .FirstOrDefaultAsync(o => o.FUserId == userId && o.FOrderStatus == "Cart");
+
+            if (order == null)
+                return Ok(new { orderId = 0, items = new List<object>() });
+
+            var result = new
+            {
+                orderId = order.FOrderId,
+                items = order.TMealOrderItems.Select(i => new
+                {
+                    orderItemId = i.FOrderItemId,
+                    mealId = i.FMealId,
+                    mealName = i.FMeal.FMealName,
+                    imageUrl=i.FMeal.FImageUrl,
+                    pickDate = i.FPickDate,
+                    pickTime = i.FPickTimeId,
+                    qty = i.FQty,
+                    unitPrice = i.FUnitPrice,
+                    subtotal = i.FSubtotal
+                })
+            };
+
+            return Ok(result);
         }
     }
 }

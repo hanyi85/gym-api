@@ -29,7 +29,7 @@ namespace gym_api.Controllers.meal
                 .ToListAsync();
         }
 
-        // 🔥 只取啟用時段（給前端下拉選單用）
+        // 只取啟用時段（給前端下拉選單用）
         // GET: api/TMealPickUpTimes/active
         [HttpGet("active")]
         public async Task<ActionResult<IEnumerable<TMealPickUpTime>>> GetActivePickUpTimes()
