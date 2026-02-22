@@ -151,5 +151,32 @@ namespace gym_api.Controllers.meal
 
             return Ok();
         }
+
+        // POST: api/TMealCarts/Checkout/{userId}
+        [HttpPost("Checkout/{userId}")]
+        public async Task<IActionResult> Checkout(MealCheckoutDto dto,int userId)
+        {
+            //var userId = GetUserId();
+
+            var order = await _context.TMealOrders
+                .Include(o => o.TMealOrderItems)
+                .FirstOrDefaultAsync(o => o.FUserId == userId && o.FOrderStatus == "Cart");
+
+            if (order == null)
+                return BadRequest("沒有購物車");
+
+            order.FOrderName = dto.Name;
+            order.FOrderPhone = dto.Phone;
+            order.FOrderEmail = dto.Email;
+            order.FVenueId = dto.VenueId;
+            order.FOrderStatus = "Paid";
+            order.FOrderAt = DateTime.Now;
+            order.FPayMethod = dto.PayMethod;
+            order.FTotalAmount = order.TMealOrderItems.Sum(i => i.FSubtotal);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(order.FOrderId);
+        }
     }
 }
