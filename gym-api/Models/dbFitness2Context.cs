@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace gym_api.Models;
 public partial class dbFitness2Context : DbContext // 這裡要改成你產出的類別名稱
 {
+    internal object UUser;
+
     // 保留這個空建構子，方便某些開發場景使用
     public dbFitness2Context() { }
 
