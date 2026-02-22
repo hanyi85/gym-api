@@ -114,7 +114,7 @@ namespace gym_api.Controllers.meal
         }
 
         //取得取餐分店
-        // GET: api/MealVenues
+        // GET: api/TMealOrders/MealVenues
         [HttpGet("MealVenues")]
         public async Task<ActionResult<IEnumerable<MealVenueDto>>> GetVrnues()
         {
@@ -126,6 +126,30 @@ namespace gym_api.Controllers.meal
          })
          .ToListAsync();
 
+        }
+
+        //訂餐結果回傳
+        //Get:api/TMealOrders/result/{orderId}
+        [HttpGet("result/{orderId}")]
+        public async Task<IActionResult> GetResult(int orderId)
+        {
+            var order = await _context.TMealOrders
+                .Include(o => o.FVenue)
+                .Include(o => o.TMealOrderItems)
+                .ThenInclude(i => i.FMeal)
+                .Include(o => o.TMealOrderItems)
+                .ThenInclude(i => i.FPickTime)
+
+                .FirstOrDefaultAsync(o => o.FOrderId == orderId);
+
+            if (order == null)
+                return NotFound();
+
+            return Ok(new
+            {
+                order,
+                items = order.TMealOrderItems
+            });
         }
     }
 }
