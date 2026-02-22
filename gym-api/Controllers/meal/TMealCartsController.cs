@@ -63,7 +63,7 @@ namespace gym_api.Controllers.meal
             return Ok();
         }
 
-        // POST: api/Cartt/{userId}
+        // POST: api/TMealCarts/Cart/{userId}
         [HttpGet("Cart/{userId}")]
         public async Task<IActionResult> GetCart(int userId)
         {
@@ -87,7 +87,7 @@ namespace gym_api.Controllers.meal
                     mealName = i.FMeal.FMealName,
                     imageUrl=i.FMeal.FImageUrl,
                     pickDate = i.FPickDate,
-                    pickTime = i.FPickTimeId,
+                    pickTimeId = i.FPickTimeId,
                     qty = i.FQty,
                     unitPrice = i.FUnitPrice,
                     subtotal = i.FSubtotal
@@ -97,7 +97,8 @@ namespace gym_api.Controllers.meal
             return Ok(result);
         }
 
-        [HttpDelete("item/{orderitemid}")]
+        //Delete:api/TMealCarts/item/{orderitemid}
+        [HttpDelete("Item/{orderitemid}")]
         public async Task<IActionResult> DeleteItem(int orderitemid)
         {
             var item = await _context.TMealOrderItems.FindAsync(orderitemid);
@@ -106,6 +107,46 @@ namespace gym_api.Controllers.meal
                 return NotFound();
 
             _context.TMealOrderItems.Remove(item);
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
+
+        // POST: api/TMealCarts/UpdateCart
+        [HttpPut("UpdateCart")]
+        public async Task<IActionResult> UpdateCart(MealUpdateCartDto dto)
+        {
+            var order = await _context.TMealOrders
+                .Include(o => o.TMealOrderItems)
+                .FirstOrDefaultAsync(o => o.FOrderId == dto.OrderId);
+
+            if (order == null)
+                return NotFound();
+
+            foreach (var itemDto in dto.Items)
+            {
+                var item = order.TMealOrderItems
+                    .FirstOrDefault(i => i.FOrderItemId == itemDto.OrderItemId);
+
+                if (item == null)
+                    continue;
+
+                // 更新使用者修改的資料
+                item.FPickDate = itemDto.PickDate;
+                item.FPickTimeId = itemDto.PickTimeId;
+                item.FQty = itemDto.Qty;
+
+                //  後端重新抓價格
+                var meal = await _context.TMeals
+                    .FirstOrDefaultAsync(m => m.FMealId == item.FMealId);
+
+                item.FUnitPrice = meal.FPrice;
+                item.FSubtotal = meal.FPrice * item.FQty;
+            }
+
+            //  更新總金額
+            order.FTotalAmount = order.TMealOrderItems.Sum(i => i.FSubtotal);
+
             await _context.SaveChangesAsync();
 
             return Ok();
