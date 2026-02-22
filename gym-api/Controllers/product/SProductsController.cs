@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using gym_api.Models;
+using gym_api.DTO;
 
 namespace gym_api.Controllers.product
 {
@@ -22,11 +23,16 @@ namespace gym_api.Controllers.product
 
         // GET: api/SProducts
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<SProduct>>> GetSProducts()
+        public async Task<IEnumerable<SProductDTO>> GetSProducts()
         {
             return await _context.SProducts
-                .Include(s => s.CIdNavigation)
-                .Include(s => s.Sup)
+                .SelectMany(p => p.SSpecifications.Select(s => new SProductDTO
+                {
+                    PId = s.SpecId,
+                    PName = p.PName,
+                    Price = s.Price,
+                    SpecName = s.SpecName,
+                }))
                 .ToListAsync();
         }
 
