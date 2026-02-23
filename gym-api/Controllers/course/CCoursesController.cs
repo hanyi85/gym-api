@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using gym_api.Models.CourseDTOs;
 
 namespace gym_api.Controllers.course
 {
@@ -271,6 +272,93 @@ namespace gym_api.Controllers.course
                 return NotFound("Schedule not found");
 
             return Ok(data);
+        }
+
+        [HttpPost("apply-discount")]
+        public async Task<IActionResult> ApplyDiscount([FromBody] ApplyDiscountRequestDto req)
+        {
+            if (req == null || req.ScheduleId <= 0)
+                return BadRequest("資料不完整");
+
+            var now = DateTime.Now;
+
+            // 1) 用 scheduleId 取得原價（永遠以後端為準）
+            var schedule = await (
+                from s in _context.CCourseSchedules
+                join c in _context.CCourses on s.CourseId equals c.CourseId
+                where s.ScheduleId == req.ScheduleId && !s.IsDeleted && !c.IsDeleted
+                select new
+                {
+                    basePrice = c.Price
+                }
+            ).FirstOrDefaultAsync();
+
+            if (schedule == null)
+                return NotFound("找不到時段");
+
+            var basePrice = schedule.basePrice;
+
+            // 2) 折扣碼整理
+            var code = (req.Code ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return Ok(new
+                {
+                    ok = true,
+                    basePrice,
+                    discountCode = "",
+                    discountAmount = 0,
+                    finalPrice = basePrice
+                });
+            }
+
+            // 3) 查折扣碼（請確認你的 DbSet 名稱）
+            var discount = await _context.CDiscounts
+                .Where(d => d.Code == code && d.IsActive && !d.IsDeleted)
+                .Select(d => new
+                {
+                    d.Code,
+                    d.DiscountType,
+                    d.DiscountValue,
+                    d.MinSpend
+                })
+                .FirstOrDefaultAsync();
+
+            if (discount == null)
+                return BadRequest("折扣碼無效或未啟用");
+
+          
+            if (basePrice < discount.MinSpend)
+                return BadRequest($"未達低消 NT$ {discount.MinSpend}");
+
+            
+            int discountAmount = 0;
+
+            if (discount.DiscountType == "百分比")
+            {
+                discountAmount = (int)Math.Floor(basePrice * (discount.DiscountValue / 100m));
+            }
+            else if (discount.DiscountType == "金額折抵")
+            {
+                discountAmount = discount.DiscountValue;
+            }
+            else
+            {
+                return BadRequest("折扣類型不支援");
+            }
+
+            if (discountAmount > basePrice) discountAmount = basePrice;
+
+            var finalPrice = basePrice - discountAmount;
+
+            return Ok(new
+            {
+                ok = true,
+                basePrice,
+                discountCode = discount.Code,
+                discountAmount,
+                finalPrice
+            });
         }
     }
 }
