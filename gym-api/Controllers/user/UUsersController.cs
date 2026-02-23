@@ -1,10 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using gym_api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using gym_api.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace gym_api.Controllers.user
 {
@@ -58,32 +60,59 @@ namespace gym_api.Controllers.user
 
         // PUT: api/UUsers/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutUUser(int id, UUser uUser)
+        public IActionResult UpdateUser(int id, [FromBody] UUpdateUserDto dto)
         {
-            if (id != uUser.UserId)
+            var user = _context.UUsers.FirstOrDefault(u => u.UserId == id);
+
+            if (user == null)
             {
-                return BadRequest("ID 不符");
+                return NotFound("找不到使用者");
             }
 
-            _context.Entry(uUser).State = EntityState.Modified;
+            user.Name = dto.Name ?? user.Name;
+            user.Phone = dto.Phone ?? user.Phone;
+            user.Address = dto.Address ?? user.Address;
 
-            try
+            if (dto.BirthDate.HasValue)
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!UUserExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                user.BirthDate = dto.BirthDate.Value;
             }
 
-            return NoContent();
+            _context.SaveChanges();
+
+            return Ok("修改成功");
+        }
+
+        //修改密碼
+        [HttpPut("{id}/change-password")]
+        public async Task<IActionResult> ChangePassword(int id, UChangePasswordDto dto)
+        {
+            var user = await _context.UUsers.FindAsync(id);
+
+            if (user == null)
+                return NotFound("找不到使用者");
+            //用資料庫的 salt 建立 HMAC
+            using var hmac = new HMACSHA512(user.PasswordSalt);
+
+            // 計算舊密碼 hash
+            var oldHash = Convert.ToBase64String(
+                hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.OldPassword))
+            );
+
+            if (oldHash != user.Password)
+                return BadRequest("舊密碼錯誤");
+
+            // 產生新 salt + 新密碼
+            using var newHmac = new HMACSHA512();
+
+            user.PasswordSalt = newHmac.Key;
+            user.Password = Convert.ToBase64String(
+                newHmac.ComputeHash(Encoding.UTF8.GetBytes(dto.NewPassword))
+            );
+
+            await _context.SaveChangesAsync();
+
+            return Ok("密碼修改成功");
         }
 
         // DELETE: api/UUsers/5

@@ -13,6 +13,7 @@ namespace gym_api.Controllers.user
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Tags("會員登入")]
     public class AuthController : ControllerBase
     {
         private readonly dbFitness2Context _context;
