@@ -1,4 +1,5 @@
 ﻿using gym_api.Models;
+using gym_api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -17,70 +18,90 @@ namespace gym_api.Controllers.user
     public class AuthController : ControllerBase
     {
         private readonly dbFitness2Context _context;
-
-        public AuthController(dbFitness2Context context)
+        private readonly JwtService _jwtService;
+        public AuthController(dbFitness2Context context,JwtService jwtService)
         {
             _context = context;
+            _jwtService = jwtService;
         }
 
+        //登入
         [HttpPost("login")]
-        public async Task<IActionResult> Login(ULoginDto dto)
+        public async Task<IActionResult> Login([FromBody] ULoginDto dto)
         {
             var user = await _context.UUsers
-                .FirstOrDefaultAsync(u => u.Account == dto.Account);
+                .FirstOrDefaultAsync(u => u.Email == dto.Email);
 
             if (user == null)
                 return Unauthorized("帳號不存在");
 
+            
             using var hmac = new HMACSHA512(user.PasswordSalt);
 
             var computedHash = Convert.ToBase64String(
-                hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password))
-            );
+                hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password)));
 
-            if (computedHash != user.Password)
+            if (dto.Password != user.Password)
                 return Unauthorized("密碼錯誤");
+
+            var token = _jwtService.GenerateAccessToken(user);
 
             return Ok(new
             {
-                message = "登入成功",
+                token,
                 userId = user.UserId,
-                account = user.Account
+                Name = user.Name
             });
         }
 
+        //登出
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            return Ok("前端刪除 Token 即可");
+        }
+
+        //註冊
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
-            if (await _context.UUsers.AnyAsync(x => x.Account == dto.Account))
-                return BadRequest("帳號已存在");
+            if (await _context.UUsers.AnyAsync(x => x.Email == dto.Email))
+                return BadRequest("信箱已被註冊");
 
             using var hmac = new HMACSHA512();
 
+            var verifyToken = Guid.NewGuid().ToString();
+
             var user = new UUser
             {
-                Account = dto.Account,
-                Name = dto.Name,
+                Email = dto.Email,
+                Account = dto.Email,
+                LoginProvider = "local",
 
-                // 補齊 NOT NULL 欄位
-                Sex = "未填",                   // 或 "男"
-                BirthDate = DateOnly.FromDateTime(DateTime.Now),    // 先給今天
-                Phone = "",
-                Address = "",
-                Email = "",
-                Status = 1,                     // 正常會員
-
-                // 密碼相關
                 Password = Convert.ToBase64String(
                     hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password))
                 ),
-                PasswordSalt = hmac.Key
+                PasswordSalt = hmac.Key,
+
+                Status = 0,
+                email_verified_at = null,
+                EmailVerifyToken = verifyToken,
+                EmailVerifyExpire = DateTime.Now.AddMinutes(30),
+
+                CreatedDate = DateTime.Now
             };
 
             _context.UUsers.Add(user);
             await _context.SaveChangesAsync();
 
-            return Ok("註冊成功");
+            var verifyLink = $"https://你的前端網址/users/verify?token={verifyToken}";
+            await _emailService.SendVerifyEmail(dto.Email, verifyLink);
+
+            return Ok("請至信箱完成驗證");
         }
+
+        //驗證 Email
+        [HttpGet("verify-email")]
+        //GET  /api/Auth/verify-email
     }
 }

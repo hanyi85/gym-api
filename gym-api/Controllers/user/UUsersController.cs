@@ -22,26 +22,6 @@ namespace gym_api.Controllers.user
             _context = context;
         }
 
-        // GET: api/UUsers
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<UUser>>> GetUUsers()
-        {
-            return await _context.UUsers.ToListAsync();
-        }
-
-        // GET: api/UUsers/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<UUser>> GetUUser(int id)
-        {
-            var uUser = await _context.UUsers.FindAsync(id);
-
-            if (uUser == null)
-            {
-                return NotFound();
-            }
-
-            return uUser;
-        }
 
         // POST: api/UUsers
         [HttpPost]
@@ -115,21 +95,6 @@ namespace gym_api.Controllers.user
             return Ok("密碼修改成功");
         }
 
-        // DELETE: api/UUsers/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUUser(int id)
-        {
-            var uUser = await _context.UUsers.FindAsync(id);
-            if (uUser == null)
-            {
-                return NotFound();
-            }
-
-            _context.UUsers.Remove(uUser);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
 
         private bool UUserExists(int id)
         {
