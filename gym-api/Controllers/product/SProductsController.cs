@@ -31,7 +31,13 @@ namespace gym_api.Controllers.product
                     PId = s.SpecId,
                     PName = p.PName,
                     Price = s.Price,
-                    SpecName = s.SpecName 
+                    SpecName = s.SpecName,
+                    ImagePath = p.SImages
+    .OrderByDescending(img => img.SpecId == s.SpecId)
+    .ThenByDescending(img => img.MainPicture && img.SpecId == null)
+    .ThenByDescending(img => img.PicId)
+    .Select(img => img.Picture)
+    .FirstOrDefault() ?? "/images/products/default.jpg"
                 }))
                 .ToListAsync();
         }

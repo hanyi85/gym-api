@@ -6,6 +6,7 @@
         public string PName { get; set; }
         public decimal Price { get; set; }
         public string SpecName { get; set; }
+        public string ImagePath { get; set; }
 
         // 新增這個屬性：組合後的完整名稱
         public string FullName => string.IsNullOrEmpty(SpecName)
