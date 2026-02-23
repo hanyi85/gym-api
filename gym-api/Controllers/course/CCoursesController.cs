@@ -240,6 +240,37 @@ namespace gym_api.Controllers.course
         }
 
 
+        /// GET: api/CCourses/schedule-detail/5
+        [HttpGet("schedule-detail/{scheduleId}")]
+        public async Task<IActionResult> GetScheduleDetail(int scheduleId)
+        {
+            var now = DateTime.Now;
 
+            var data = await (
+                from s in _context.CCourseSchedules
+                join c in _context.CCourses on s.CourseId equals c.CourseId
+                where s.ScheduleId == scheduleId && !s.IsDeleted && !c.IsDeleted
+                select new
+                {
+                    scheduleId = s.ScheduleId,
+                    courseId = c.CourseId,
+                    courseName = c.CourseName,
+                    price = c.Price,
+                    date = s.StartTime.ToString("yyyy-MM-dd"),
+                    time = s.StartTime.ToString("HH:mm"),
+                    full = s.CurrentCapacity >= s.MaxCapacity,
+                    canEnroll = s.EnrollDeadline == null || s.EnrollDeadline >= now,
+                    coachName = _context.UCoaches
+                        .Where(x => x.CoachId == s.CoachId)
+                        .Select(x => x.Name)
+                        .FirstOrDefault() ?? ""
+                }
+            ).FirstOrDefaultAsync();
+
+            if (data == null)
+                return NotFound("Schedule not found");
+
+            return Ok(data);
+        }
     }
 }
