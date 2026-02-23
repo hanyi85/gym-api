@@ -4,14 +4,18 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace gym_api.Controllers.user
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
+    [Authorize]
     [Tags("會員管理")]
     public class UUsersController : ControllerBase
     {
@@ -22,59 +26,49 @@ namespace gym_api.Controllers.user
             _context = context;
         }
 
-
-        // POST: api/UUsers
-        [HttpPost]
-        public async Task<ActionResult<UUser>> PostUUser(UUser uUser)
+        private string GetUserEmail()
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            _context.UUsers.Add(uUser);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetUUser), new { id = uUser.UserId }, uUser);
+            return User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         }
 
         // PUT: api/UUsers/5
-        [HttpPut("{id}")]
-        public IActionResult UpdateUser(int id, [FromBody] UUpdateUserDto dto)
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateUser([FromBody] UUpdateUserDto dto)
         {
-            var user = _context.UUsers.FirstOrDefault(u => u.UserId == id);
+            var email = GetUserEmail();
+
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(u => u.Email == email);
 
             if (user == null)
-            {
                 return NotFound("找不到使用者");
-            }
 
             user.Name = dto.Name ?? user.Name;
             user.Phone = dto.Phone ?? user.Phone;
             user.Address = dto.Address ?? user.Address;
 
             if (dto.BirthDate.HasValue)
-            {
                 user.BirthDate = dto.BirthDate.Value;
-            }
 
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
 
             return Ok("修改成功");
         }
 
         //修改密碼
-        [HttpPut("{id}/change-password")]
-        public async Task<IActionResult> ChangePassword(int id, UChangePasswordDto dto)
+        [HttpPut("change-password")]
+        public async Task<IActionResult> ChangePassword(UChangePasswordDto dto)
         {
-            var user = await _context.UUsers.FindAsync(id);
+            var email = GetUserEmail();
+
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(u => u.Email == email);
 
             if (user == null)
                 return NotFound("找不到使用者");
-            //用資料庫的 salt 建立 HMAC
+
             using var hmac = new HMACSHA512(user.PasswordSalt);
 
-            // 計算舊密碼 hash
             var oldHash = Convert.ToBase64String(
                 hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.OldPassword))
             );
@@ -82,7 +76,6 @@ namespace gym_api.Controllers.user
             if (oldHash != user.Password)
                 return BadRequest("舊密碼錯誤");
 
-            // 產生新 salt + 新密碼
             using var newHmac = new HMACSHA512();
 
             user.PasswordSalt = newHmac.Key;

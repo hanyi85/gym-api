@@ -3,12 +3,16 @@ using gym_api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace gym_api.Controllers.user
 {
@@ -19,10 +23,12 @@ namespace gym_api.Controllers.user
     {
         private readonly dbFitness2Context _context;
         private readonly JwtService _jwtService;
-        public AuthController(dbFitness2Context context,JwtService jwtService)
+        private readonly IConfiguration _config;
+        public AuthController(dbFitness2Context context, JwtService jwtService, IConfiguration config)
         {
             _context = context;
             _jwtService = jwtService;
+            _config = config;
         }
 
         //登入
@@ -33,16 +39,41 @@ namespace gym_api.Controllers.user
                 .FirstOrDefaultAsync(u => u.Email == dto.Email);
 
             if (user == null)
-                return Unauthorized("帳號不存在");
+                return Unauthorized("帳號或密碼錯誤");
 
-            
-            using var hmac = new HMACSHA512(user.PasswordSalt);
+            //判斷是否為舊明文帳號
+            if (user.PasswordSalt == null || user.PasswordSalt.Length == 0)
+            {
+                // 舊明文驗證
+                if (dto.Password != user.Password)
+                    return Unauthorized("帳號或密碼錯誤");
 
-            var computedHash = Convert.ToBase64String(
-                hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password)));
+                // 升級成加密版本
+                using var newHmac = new HMACSHA512();
 
-            if (dto.Password != user.Password)
-                return Unauthorized("密碼錯誤");
+                user.PasswordSalt = newHmac.Key;
+                user.Password = Convert.ToBase64String(
+                    newHmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password))
+                );
+
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // 正常加密驗證流程
+                using var hmac = new HMACSHA512(user.PasswordSalt);
+
+                var computedHash = Convert.ToBase64String(
+                    hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password))
+                );
+
+                if (computedHash != user.Password)
+                    return Unauthorized("帳號或密碼錯誤");
+            }
+
+            // 檢查是否完成 Email 驗證
+            if (user.EmailVerifiedAt == null)
+                return Unauthorized("請先完成 Email 驗證");
 
             var token = _jwtService.GenerateAccessToken(user);
 
@@ -50,7 +81,7 @@ namespace gym_api.Controllers.user
             {
                 token,
                 userId = user.UserId,
-                Name = user.Name
+                name = user.Name
             });
         }
 
@@ -70,38 +101,116 @@ namespace gym_api.Controllers.user
 
             using var hmac = new HMACSHA512();
 
-            var verifyToken = Guid.NewGuid().ToString();
-
             var user = new UUser
             {
-                Email = dto.Email,
+                // 帳號資料
                 Account = dto.Email,
-                LoginProvider = "local",
+                Email = dto.Email,
+                LoginProvider = "Email",
 
+                // 密碼
                 Password = Convert.ToBase64String(
                     hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password))
                 ),
                 PasswordSalt = hmac.Key,
 
-                Status = 0,
-                email_verified_at = null,
-                EmailVerifyToken = verifyToken,
-                EmailVerifyExpire = DateTime.Now.AddMinutes(30),
-
-                CreatedDate = DateTime.Now
+                // 預設值
+                Name = "",                     // 先給空值，之後填寫
+                Sex = "",
+                BirthDate = DateOnly.FromDateTime(DateTime.Today),
+                Phone = "",
+                Address = "",
+                Status = 0, // 未驗證
+                CreatedDate = DateTime.Now,
+                IsEmailVerified = false,
+                EmailVerifiedAt = null
             };
 
             _context.UUsers.Add(user);
             await _context.SaveChangesAsync();
 
-            var verifyLink = $"https://你的前端網址/users/verify?token={verifyToken}";
-            await _emailService.SendVerifyEmail(dto.Email, verifyLink);
+            // 產生驗證信
+            var verifyToken = GenerateEmailVerifyToken(dto.Email);
+            var verifyLink = $"http://localhost:5173/users/verifyEmail?token={verifyToken}";
+            // await _emailService.SendVerifyEmail(dto.Email, verifyLink);
 
             return Ok("請至信箱完成驗證");
         }
 
+
+        private string GenerateEmailVerifyToken(string email)
+        {
+            var claims = new[]
+            {
+        new Claim(JwtRegisteredClaimNames.Email, email),
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+    };
+
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(_config["Jwt:Key"])
+            );
+
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: _config["Jwt:Issuer"],
+                audience: _config["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(30),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
         //驗證 Email
         [HttpGet("verify-email")]
-        //GET  /api/Auth/verify-email
+        public async Task<IActionResult> VerifyEmail(string token)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]);
+
+            try
+            {
+                var claims = handler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidateLifetime = true,
+                    ValidIssuer = _config["Jwt:Issuer"],
+                    ValidAudience = _config["Jwt:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(key)
+                }, out _);
+
+                var email = claims.FindFirst(JwtRegisteredClaimNames.Email)?.Value
+           ?? claims.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+                var user = await _context.UUsers
+                    .FirstOrDefaultAsync(x => x.Email == email);
+
+                if (user == null)
+                    return BadRequest("使用者不存在");
+
+                if (user.EmailVerifiedAt != null)
+                    return BadRequest("此帳號已驗證過");
+
+                user.EmailVerifiedAt = DateTime.Now;
+                user.Status = 1;
+                user.IsEmailVerified = true;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new { success = true });
+            }
+            catch
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "驗證連結無效或已過期"
+                });
+            }
+        }
     }
 }
