@@ -31,7 +31,7 @@ namespace gym_api.Controllers.product
                     PId = s.SpecId,
                     PName = p.PName,
                     Price = s.Price,
-                    SpecName = s.SpecName,
+                    SpecName = s.SpecName 
                 }))
                 .ToListAsync();
         }
