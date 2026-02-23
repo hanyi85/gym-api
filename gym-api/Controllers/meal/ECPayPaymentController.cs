@@ -37,7 +37,7 @@ namespace gym_api.Controllers.meal
                 string hashKey = "pwFHCqoQZGmho4w6";
                 string hashIV = "EkRm7iFT261dpevs";
 
-                var tradeNo = $"ORDER{dto.OrderId}_{DateTime.Now.Ticks}";
+            var tradeNo = $"T{DateTime.Now:yyMMddHHmmss}{dto.OrderId}";
 
             var parameters = new Dictionary<string, string>
                 {
@@ -99,8 +99,13 @@ namespace gym_api.Controllers.meal
 
         private int ParseOrderId(string merchantTradeNo)
         {
-            var parts = merchantTradeNo.Split('_')[0];
-            return int.Parse(parts.Replace("ORDER", ""));
+            // 移除開頭 T
+            var body = merchantTradeNo.Substring(1);
+
+            // 前 12 位是時間
+            var orderIdStr = body.Substring(12);
+
+            return int.Parse(orderIdStr);
         }
 
         [HttpPost("Callback")]
