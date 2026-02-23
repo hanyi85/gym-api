@@ -360,5 +360,76 @@ namespace gym_api.Controllers.course
                 finalPrice
             });
         }
+        [HttpGet("payment-summary/{scheduleId}")]
+        public async Task<IActionResult> GetPaymentSummary(int scheduleId, [FromQuery] string? code)
+        {
+            var now = DateTime.Now;
+
+            // 1) schedule + course + coach
+            var booking = await (
+                from s in _context.CCourseSchedules
+                join c in _context.CCourses on s.CourseId equals c.CourseId
+                where s.ScheduleId == scheduleId && !s.IsDeleted && !c.IsDeleted
+                select new
+                {
+                    scheduleId = s.ScheduleId,
+                    courseId = c.CourseId,
+                    courseName = c.CourseName,
+                    price = c.Price,
+                    date = s.StartTime.ToString("yyyy-MM-dd"),
+                    time = s.StartTime.ToString("HH:mm"),
+                    full = s.CurrentCapacity >= s.MaxCapacity,
+                    canEnroll = s.EnrollDeadline == null || s.EnrollDeadline >= now,
+                    coachName = _context.UCoaches
+                        .Where(co => co.CoachId == s.CoachId)
+                        .Select(co => co.Name)
+                        .FirstOrDefault() ?? ""
+                }
+            ).FirstOrDefaultAsync();
+
+            if (booking == null) return NotFound("找不到時段");
+            if (booking.full) return BadRequest("此時段已額滿");
+            if (!booking.canEnroll) return BadRequest("已超過報名截止時間");
+
+            // 2) 套用折扣（可選）
+            var basePrice = booking.price;
+            var discountAmount = 0;
+            var discountCode = "";
+
+            var inputCode = (code ?? "").Trim();
+            if (!string.IsNullOrWhiteSpace(inputCode))
+            {
+                var d = await _context.CDiscounts
+                    .Where(x => x.Code == inputCode && x.IsActive && !x.IsDeleted)
+                    .Select(x => new { x.Code, x.DiscountType, x.DiscountValue, x.MinSpend })
+                    .FirstOrDefaultAsync();
+
+                if (d == null) return BadRequest("折扣碼無效或未啟用");
+                if (basePrice < d.MinSpend) return BadRequest($"未達低消 NT$ {d.MinSpend}");
+
+                discountCode = d.Code;
+
+                if (d.DiscountType == "百分比")
+                    discountAmount = (int)Math.Floor(basePrice * (d.DiscountValue / 100m));
+                else
+                    discountAmount = d.DiscountValue;
+            }
+
+            var finalPrice = Math.Max(0, basePrice - discountAmount);
+
+            return Ok(new
+            {
+                booking.scheduleId,
+                booking.courseId,
+                booking.courseName,
+                booking.date,
+                booking.time,
+                booking.coachName,
+                originPrice = basePrice,
+                discountCode,
+                discountAmount,
+                finalPrice
+            });
+        }
     }
 }
