@@ -76,14 +76,17 @@ namespace gym_api.Controllers.product
                 AverageStar = commentList.Any() ? Math.Round(commentList.Average(c => (double)c.CommentStar), 1) : 0,
                 TotalComments = commentList.Count,
 
-                Comments = commentList.Select(c => new SCommentDTO
-                {
-                    ComId = c.ComId,
-                    UserId = c.UserId,
-                    CommentStar = (int)c.CommentStar,
-                    ProductComment = c.Productcomment, 
-                    CommentTime = c.CommentTime.ToString("yyyy-MM-dd HH:mm")
-                }).ToList(),
+                Comments = (from c in commentList
+                            join u in _context.UUsers on c.UserId equals u.UserId // 這裡請換成正確的 DbSet 名稱
+                            select new SCommentDTO
+                            {
+                                ComId = c.ComId,
+                                UserId = c.UserId,
+                                UserName = u.Name, // 這裡現在可以抓到 Users 表的真實姓名了
+                                CommentStar = (int)c.CommentStar,
+                                ProductComment = c.Productcomment,
+                                CommentTime = c.CommentTime.ToString("yyyy-MM-dd HH:mm")
+                            }).ToList(),
 
                 ImageList = product.SImages
              .OrderByDescending(img => img.SpecId == spec.SpecId) 
