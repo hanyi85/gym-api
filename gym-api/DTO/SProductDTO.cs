@@ -8,12 +8,17 @@
         public string SpecName { get; set; }
         public string ImagePath { get; set; }
 
-        // 新增這個屬性：組合後的完整名稱
+        public string CategoryName { get; set; }
+        public string Description { get; set; }
+
         public string FullName => string.IsNullOrEmpty(SpecName)
             ? PName
             : $"{PName} ({SpecName})";
 
-        // 如果你想在後台算好原價，也可以加上這個
-        public string OriginalPrice => (Price * 1.2m).ToString("0");
+        public decimal? DiscountPrice { get; set; }
+
+        public List<SCommentDTO> Comments { get; set; } = new List<SCommentDTO>();
+        public double AverageStar { get; set; } 
+        public int TotalComments { get; set; }
     }
 }
