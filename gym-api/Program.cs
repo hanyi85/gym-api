@@ -1,6 +1,7 @@
 using gym_api.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
+using gym_api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,6 +47,17 @@ builder.Services.AddControllers()
         // 保留 C# 屬性命名（不轉 camelCase）
         options.JsonSerializerOptions.PropertyNamingPolicy = null;
     });
+// =======================
+//  NewebPay（藍新）設定
+// =======================
+var np = builder.Configuration.GetSection("NewebPay").Get<NewebPayOptions>();
+if (np is null)
+{
+    throw new Exception("NewebPay 設定不存在，請確認 appsettings.json 是否有 NewebPay 區塊");
+}
+
+builder.Services.AddSingleton(np);
+builder.Services.AddScoped<NewebPayService>();
 
 // =======================
 //  Swagger
