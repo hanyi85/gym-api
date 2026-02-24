@@ -1,187 +1,142 @@
-﻿using gym_api.Models;
-using Microsoft.AspNetCore.Http;
+﻿using gym_api.DTO; // 確保引用了你的 DTO 命名空間
+using gym_api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
-namespace gym_api.Controllers.product
+[Route("api/[controller]")]
+[ApiController]
+public class SCartsController : ControllerBase
 {
-    [Route("api/SCarts")]
-    [ApiController] // 啟用 API 自動行為與 Swagger 偵測
-    [Tags("購物車管理")] // 在 Swagger UI 上顯示的分類標籤
-    public class SCartsController : ControllerBase
+    private readonly dbFitness2Context _context;
+    private readonly string _imageBaseUrl = "https://localhost:7218/";
+
+    public SCartsController(dbFitness2Context context)
     {
-        private readonly dbFitness2Context _context;
+        _context = context;
+    }
 
-        public SCartsController(dbFitness2Context context)
+    [HttpGet("User/{userId}")]
+    public async Task<ActionResult<SCartPageResponseDTO>> GetCart(int userId)
+    {
+        var dbItems = await _context.SCarts
+            .Where(c => c.UserId == userId)
+            .Include(c => c.Spec)
+            .ThenInclude(s => s.PIdNavigation)
+            .ToListAsync();
+
+        var itemList = dbItems.Select(c => {
+            var bestImage = c.Spec.SImages
+                .OrderBy(img => img.ImageType == "Spec" ? 1 : (img.ImageType == "Main" ? 2 : 3))
+                .ThenBy(img => img.Sort)
+                .Select(img => img.Picture) 
+                .FirstOrDefault();
+
+            return new SCartItemListDTO
+            {
+                CartId = c.CartId,
+                SpecId = c.SpecId,
+                Name = c.Spec.PIdNavigation.PName + (string.IsNullOrEmpty(c.Spec.SpecName) ? "" : $" - {c.Spec.SpecName}"),
+                Price = c.Spec.DiscountPrice ?? c.Spec.Price, 
+                OriginPrice = c.Spec.Price,
+                Quantity = c.Quantity,
+                Image = _imageBaseUrl + (bestImage ?? "images/default.png").Replace("\\", "/")
+            };
+        }).ToList();
+
+        // 計算小計
+        decimal subtotal = itemList.Sum(i => i.Price * i.Quantity);
+        // 運費邏輯：滿 899 免運，否則 80 (購物車為空時為 0)
+        int shipping = (subtotal >= 899 || subtotal == 0) ? 0 : 80;
+
+        return Ok(new SCartPageResponseDTO
         {
-            _context = context;
+            Items = itemList,
+            Subtotal = subtotal,
+            ShippingFee = shipping,
+            TotalAmount = subtotal + shipping
+        });
+    }
+
+    [HttpPost("AddToCart")]
+    public async Task<ActionResult> PostCart([FromBody] SCartsDTO dto)
+    {
+        var spec = await _context.SSpecifications.FindAsync(dto.SpecId);
+        if (spec == null) return NotFound("找不到該商品規格");
+
+        var existingItem = await _context.SCarts
+            .FirstOrDefaultAsync(c => c.UserId == dto.UserId && c.SpecId == dto.SpecId);
+
+        if (existingItem != null)
+        {
+            existingItem.Quantity += dto.Quantity;
+        }
+        else
+        {
+            var newItem = new SCart
+            {
+                UserId = dto.UserId,
+                SpecId = dto.SpecId,
+                Quantity = dto.Quantity,
+                Price = spec.DiscountPrice ?? spec.Price 
+            };
+            _context.SCarts.Add(newItem);
         }
 
-        /// <summary>
-        /// 取得所有購物車內容
-        /// </summary>
-        [HttpGet]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<IEnumerable<SCart>>> GetSCarts()
-        {
-            return await _context.SCarts
-                .Include(s => s.Spec)
-                .Include(s => s.User)
-                .ToListAsync();
-        }
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "已加入購物車" });
+    }
 
-        /// <summary>
-        /// 根據 ID 查詢購物車項目
-        /// </summary>
-        /// <param name="id">購物車 ID</param>
-        [HttpGet("{id}")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<SCart>> GetSCart(int id)
-        {
-            var sCart = await _context.SCarts
-                .Include(s => s.Spec)
-                .Include(s => s.User)
-                .FirstOrDefaultAsync(m => m.CartId == id);
+    [HttpGet("Recommendations")]
+    public async Task<ActionResult<IEnumerable<ProductAddonDTO>>> GetRecommendations()
+    {
+        var products = await _context.SSpecifications
+            .Include(s => s.PIdNavigation)
+            .Include(s => s.SImages) 
+            .OrderBy(x => Guid.NewGuid()) 
+            .Take(6)
+            .ToListAsync();
 
-            if (sCart == null)
+        var result = products.Select(s => {
+            var bestImage = s.SImages
+                .OrderBy(img => img.ImageType == "Spec" ? 1 : (img.ImageType == "Main" ? 2 : 3))
+                .ThenBy(img => img.Sort)
+                .Select(img => img.Picture) 
+                .FirstOrDefault();
+
+            return new ProductAddonDTO
             {
-                return NotFound();
-            }
+                SpecId = s.SpecId,
+                Name = s.PIdNavigation.PName,
+                Price = s.DiscountPrice ?? s.Price,
+                OriginPrice = s.Price,
+                Image = _imageBaseUrl + (bestImage ?? "images/default.png").Replace("\\", "/")
+            };
+        }).ToList();
 
-            return sCart;
-        }
+        return Ok(result);
+    }
 
-        /// <summary>
-        /// 新增項目到購物車
-        /// </summary>
-        //[HttpPost]
-        //[ProducesResponseType(StatusCodes.Status201Created)]
-        //[ProducesResponseType(StatusCodes.Status400BadRequest)]
-        //public async Task<ActionResult<SCart>> PostSCart(SCart sCart)
-        //{
-        //    if (!ModelState.IsValid) return BadRequest(ModelState);
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateQuantity(int id, [FromBody] int quantity)
+    {
+        var cart = await _context.SCarts.FindAsync(id);
+        if (cart == null) return NotFound();
 
-        //    _context.SCarts.Add(sCart);
-        //    await _context.SaveChangesAsync();
+        if (quantity <= 0) _context.SCarts.Remove(cart);
+        else cart.Quantity = quantity;
 
-        //    return CreatedAtAction(nameof(GetSCart), new { id = sCart.CartId }, sCart);
-        //}
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
 
-        /// <summary>
-        /// 修改購物車項目
-        /// </summary>
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateQuantity(int id, [FromBody] int newQty)
-        {
-            var sCart = await _context.SCarts.FindAsync(id);
-            if (sCart == null) return NotFound();
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteItem(int id)
+    {
+        var cart = await _context.SCarts.FindAsync(id);
+        if (cart == null) return NotFound();
 
-            sCart.Quantity = newQty;
-            await _context.SaveChangesAsync();
-            return Ok();
-        }
-
-        /// <summary>
-        /// 刪除購物車項目
-        /// </summary>
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteSCart(int id)
-        {
-            var sCart = await _context.SCarts.FindAsync(id);
-            if (sCart == null)
-            {
-                return NotFound(new { message = "找不到該項購物車商品" });
-            }
-
-            _context.SCarts.Remove(sCart);
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "刪除時發生錯誤: " + ex.Message });
-            }
-
-            return Ok(new { message = "成功從購物車移除商品" });
-        }
-
-        private bool SCartExists(int id)
-        {
-            return _context.SCarts.Any(e => e.CartId == id);
-        }
-
-        [HttpPost("AddToCart")]
-        public async Task<IActionResult> AddToCart([FromBody] DTO.SCartsDTO request)
-        {
-            if (request == null || request.SpecId <= 0 || request.Quantity <= 0)
-            {
-                return BadRequest("無效的商品資料或數量");
-            }
-
-            var existingCartItem = await _context.SCarts
-                .FirstOrDefaultAsync(c => c.UserId == request.UserId && c.SpecId == request.SpecId);
-
-            if (existingCartItem != null)
-            {
-                existingCartItem.Quantity += request.Quantity;
-                existingCartItem.TimeStamp = DateTime.Now;
-                _context.Entry(existingCartItem).State = EntityState.Modified;
-            }
-            else
-            {
-                var newCartItem = new SCart
-                {
-                    SpecId = request.SpecId,
-                    Quantity = request.Quantity,
-                    Price = request.Price,
-                    UserId = request.UserId,
-                    TimeStamp = DateTime.Now
-                };
-                _context.SCarts.Add(newCartItem);
-            }
-
-            try
-            {
-                await _context.SaveChangesAsync();
-                return Ok(new { success = true, message = "成功加入購物車" });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, "儲存購物車時發生錯誤：" + ex.Message);
-            }
-        }
-
-        [HttpGet("User/{userId}")]
-        public async Task<ActionResult<IEnumerable<object>>> GetCartByUser(int userId)
-        {
-            var cartItems = await _context.SCarts
-        .Include(s => s.Spec)
-            .ThenInclude(spec => spec.PIdNavigation)
-                .ThenInclude(p => p.SImages) 
-        .Include(s => s.Spec)
-            .ThenInclude(spec => spec.SImages) 
-                .Where(s => s.UserId == userId)
-                .Select(s => new {
-                    CartId = s.CartId,
-                    SpecId = s.SpecId,
-                    Quantity = s.Quantity,
-                    Price = s.Price,
-                    Name = s.Spec.PIdNavigation.PName + " - " + s.Spec.SpecName,
-                    ImagePath = s.Spec.SImages.Where(img => img.ImageType == "Spec").Select(img => img.Picture).FirstOrDefault()
-                        ?? s.Spec.PIdNavigation.SImages.Where(img => img.ImageType == "Main").Select(img => img.Picture).FirstOrDefault(),
-                    Subtotal = s.Price * s.Quantity
-                })
-                .ToListAsync();
-
-            return Ok(cartItems);
-        }
+        _context.SCarts.Remove(cart);
+        await _context.SaveChangesAsync();
+        return Ok();
     }
 }
