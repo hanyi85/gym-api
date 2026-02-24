@@ -88,6 +88,7 @@ builder.Services.AddSwaggerGen(options =>
 // =======================
 //  SMTP ±H«H
 // =======================
+builder.Services.AddScoped<EmailService>();
 builder.Services.Configure<SmtpSettings>(
     builder.Configuration.GetSection("SmtpSettings"));
 

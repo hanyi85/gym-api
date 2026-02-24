@@ -5,16 +5,17 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using NuGet.Common;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-
 namespace gym_api.Controllers.user
 {
     [ApiController]
@@ -24,12 +25,15 @@ namespace gym_api.Controllers.user
     {
         private readonly dbFitness2Context _context;
         private readonly JwtService _jwtService;
+        private readonly EmailService _emailService;
         private readonly IConfiguration _config;
-        public AuthController(dbFitness2Context context, JwtService jwtService, IConfiguration config)
+        public AuthController(dbFitness2Context context, JwtService jwtService, IConfiguration config,
+    EmailService emailService)
         {
             _context = context;
             _jwtService = jwtService;
             _config = config;
+            _emailService = emailService;
         }
 
         //登入
@@ -83,8 +87,7 @@ namespace gym_api.Controllers.user
          
 
             // 檢查是否完成 Email 驗證 bool
-            if (!user.IsEmailVerified)
-                return Unauthorized("請先完成 Email 驗證");
+            
 
             var token = _jwtService.GenerateAccessToken(user);
 
@@ -92,7 +95,8 @@ namespace gym_api.Controllers.user
             {
                 token,
                 userId = user.UserId,
-                name = user.Name
+                name = user.Name,
+                isEmailVerified = user.IsEmailVerified
             });
         }
 
@@ -141,51 +145,36 @@ namespace gym_api.Controllers.user
             await _context.SaveChangesAsync();
 
             // 產生驗證信
-            var verifyToken = GenerateEmailVerifyToken(user);
-            var verifyLink = $"http://localhost:5173/users/verifyEmail?token={verifyToken}";
+            //var verifyToken = GenerateEmailVerifyToken(user);
+            //var verifyLink = $"http://localhost:5173/users/verifyEmail?token={verifyToken}";
             // await _emailService.SendVerifyEmail(dto.Email, verifyLink);
 
-            return Ok("請至信箱完成驗證");
+            // 產生驗證 token
+            var verifyToken = GenerateEmailVerifyToken(user);
+
+            // 一定要 UrlEncode
+            var encodedToken = WebUtility.UrlEncode(verifyToken);
+
+            var verifyLink = $"http://localhost:5173/users/verify-email?token={encodedToken}";
+
+            
+
+            // 暫時改成回傳連結（測試用）
+            return Ok(new
+            {
+                message = "註冊成功",
+                verifyLink = verifyLink
+            });
+
+
         }
 
 
-    //    public string GenerateAccessToken(UUser user)
-    //    {
-    //        var claims = new[]
-    //        {
-    //    new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
-    //    new Claim(JwtRegisteredClaimNames.Email, user.Email),
-    //    new Claim(ClaimTypes.Name, user.Name ?? ""),
-    //    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-    //};
-
-    //        var key = new SymmetricSecurityKey(
-    //            Encoding.UTF8.GetBytes(_config["Jwt:Key"])
-    //        );
-
-    //        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-    //        var token = new JwtSecurityToken(
-    //            issuer: _config["Jwt:Issuer"],
-    //            audience: _config["Jwt:Audience"],
-    //            claims: claims,
-    //            expires: DateTime.UtcNow.AddHours(2),
-    //            signingCredentials: creds
-    //        );
-
-    //        return new JwtSecurityTokenHandler().WriteToken(token);
-    //    }
-
-
-        //驗證 Email
         private string GenerateEmailVerifyToken(UUser user)
         {
-
-           
-
             var claims = new[]
             {
-        new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
+        new Claim("userId", user.UserId.ToString()),
         new Claim(JwtRegisteredClaimNames.Email, user.Email),
         new Claim("purpose", "email_verify"),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
@@ -235,7 +224,7 @@ namespace gym_api.Controllers.user
                     return BadRequest("Token 類型錯誤");
 
                 //  用 UserId 查詢
-                var userId = claims.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                var userId = claims.FindFirst("userId")?.Value;
 
                 if (!int.TryParse(userId, out int id))
                     return BadRequest("Token 資料錯誤");
