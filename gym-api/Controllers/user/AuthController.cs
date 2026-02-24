@@ -1,6 +1,7 @@
 ﻿using gym_api.Models;
 using gym_api.Models.UDTO;
 using gym_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -198,7 +199,7 @@ namespace gym_api.Controllers.user
         }
 
 
-
+        //新用戶驗證信箱
         [HttpGet("verify-email")]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
@@ -213,6 +214,7 @@ namespace gym_api.Controllers.user
                     ValidateAudience = true,
                     ValidateIssuerSigningKey = true,
                     ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero,
                     ValidIssuer = _config["Jwt:Issuer"],
                     ValidAudience = _config["Jwt:Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(key)
@@ -247,14 +249,51 @@ namespace gym_api.Controllers.user
 
                 return Ok(new { success = true });
             }
-            catch
+            catch (Exception ex)
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = "驗證連結無效或已過期"
+                    message = ex.ToString()
                 });
             }
+        }
+
+        //重發驗證信
+        [Authorize]
+        [HttpPost("resend-verify-email")]
+        public async Task<IActionResult> ResendVerifyEmail()
+        {
+            // 從 JWT 取得 userId
+            var userIdClaim = User.FindFirst("userId")?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized("無效的使用者");
+
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(x => x.UserId == userId);
+
+            if (user == null)
+                return NotFound("使用者不存在");
+
+            // 已驗證就不用寄
+            if (user.IsEmailVerified)
+                return BadRequest("帳號已完成驗證");
+
+            // 重新產生驗證 token
+            var verifyToken = GenerateEmailVerifyToken(user);
+            var encodedToken = WebUtility.UrlEncode(verifyToken);
+
+            var verifyLink = $"http://localhost:5173/users/verify-email?token={encodedToken}";
+
+            // 寄信
+            await _emailService.SendVerifyEmail(user.Email, verifyLink);
+
+            return Ok(new
+            {
+                success = true,
+                message = "驗證信已重新寄出，請至信箱查看"
+            });
         }
     }
 }
