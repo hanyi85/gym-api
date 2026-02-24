@@ -22,7 +22,7 @@ namespace gym_api.Controllers.course
         // ===============================
         public class CreatePaymentRequest
         {
-            public int OrderId { get; set; }
+            public string OrderId { get; set; }
             public int Amount { get; set; }
             public string ItemDesc { get; set; } = "課程訂單";
         }
