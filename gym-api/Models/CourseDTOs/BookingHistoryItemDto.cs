@@ -15,5 +15,7 @@
 
         public int FinalPrice { get; set; }
         public DateTime BookingTime { get; set; }
+
+        public bool IsReviewed { get; set; }
     }
 }

@@ -46,7 +46,12 @@ namespace gym_api.Controllers.course
 
                     StartTime = s.StartTime,
                     CourseName = c.CourseName,
-                    CoachName = coach.Name
+                    CoachName = coach.Name,
+
+                    // 是否已評論
+                    IsReviewed = _context.CReviews.Any(r =>
+                        !r.IsDeleted && r.CourseBookingId == b.CourseBookingId
+                    )
                 }
             ).ToListAsync();
 
