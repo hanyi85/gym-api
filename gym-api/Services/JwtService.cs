@@ -20,12 +20,15 @@ namespace gym_api.Services
             var claims = new[]
             {
         new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
-        new Claim(JwtRegisteredClaimNames.UniqueName, user.Account),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-        
+        new Claim(JwtRegisteredClaimNames.Email, user.Email),
+        new Claim(ClaimTypes.Name, user.Name ?? ""),
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        new Claim(JwtRegisteredClaimNames.Iat,
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
+            ClaimValueTypes.Integer64)
+    };
 
-        var key = new SymmetricSecurityKey(
+            var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(_config["Jwt:Key"])
             );
 
@@ -38,7 +41,8 @@ namespace gym_api.Services
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(60),
+                notBefore: DateTime.UtcNow,
+                expires: DateTime.UtcNow.AddMinutes(60),
                 signingCredentials: creds
             );
 

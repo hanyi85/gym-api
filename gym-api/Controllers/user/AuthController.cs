@@ -36,13 +36,15 @@ namespace gym_api.Controllers.user
         public async Task<IActionResult> Login([FromBody] ULoginDto dto)
         {
             var user = await _context.UUsers
-                .FirstOrDefaultAsync(u => u.Email == dto.Email);
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower());
 
             if (user == null)
                 return Unauthorized("帳號或密碼錯誤");
 
             //判斷是否為舊明文帳號
-            if (user.PasswordSalt == null || user.PasswordSalt.Length == 0)
+            if (user.PasswordSalt == null
+    || user.PasswordSalt.Length == 0
+    || user.PasswordSalt.All(b => b == 0))
             {
                 // 舊明文驗證
                 if (dto.Password != user.Password)
@@ -56,6 +58,10 @@ namespace gym_api.Controllers.user
                     newHmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password))
                 );
 
+                // 直接視為已驗證（因為舊系統本來沒這概念）
+                user.IsEmailVerified = true;
+                user.EmailVerifiedAt = DateTime.UtcNow;
+
                 await _context.SaveChangesAsync();
             }
             else
@@ -67,12 +73,16 @@ namespace gym_api.Controllers.user
                     hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.Password))
                 );
 
-                if (computedHash != user.Password)
+                if (!CryptographicOperations.FixedTimeEquals(
+        Convert.FromBase64String(computedHash),
+        Convert.FromBase64String(user.Password)))
                     return Unauthorized("帳號或密碼錯誤");
             }
 
-            // 檢查是否完成 Email 驗證
-            if (user.EmailVerifiedAt == null)
+         
+
+            // 檢查是否完成 Email 驗證 bool
+            if (!user.IsEmailVerified)
                 return Unauthorized("請先完成 Email 驗證");
 
             var token = _jwtService.GenerateAccessToken(user);
@@ -121,7 +131,7 @@ namespace gym_api.Controllers.user
                 Phone = "",
                 Address = "",
                 Status = 0, // 未驗證
-                CreatedDate = DateTime.Now,
+                CreatedDate = DateTime.UtcNow,
                 IsEmailVerified = false,
                 EmailVerifiedAt = null
             };
@@ -130,7 +140,7 @@ namespace gym_api.Controllers.user
             await _context.SaveChangesAsync();
 
             // 產生驗證信
-            var verifyToken = GenerateEmailVerifyToken(dto.Email);
+            var verifyToken = GenerateEmailVerifyToken(user);
             var verifyLink = $"http://localhost:5173/users/verifyEmail?token={verifyToken}";
             // await _emailService.SendVerifyEmail(dto.Email, verifyLink);
 
@@ -138,11 +148,45 @@ namespace gym_api.Controllers.user
         }
 
 
-        private string GenerateEmailVerifyToken(string email)
+    //    public string GenerateAccessToken(UUser user)
+    //    {
+    //        var claims = new[]
+    //        {
+    //    new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
+    //    new Claim(JwtRegisteredClaimNames.Email, user.Email),
+    //    new Claim(ClaimTypes.Name, user.Name ?? ""),
+    //    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+    //};
+
+    //        var key = new SymmetricSecurityKey(
+    //            Encoding.UTF8.GetBytes(_config["Jwt:Key"])
+    //        );
+
+    //        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+    //        var token = new JwtSecurityToken(
+    //            issuer: _config["Jwt:Issuer"],
+    //            audience: _config["Jwt:Audience"],
+    //            claims: claims,
+    //            expires: DateTime.UtcNow.AddHours(2),
+    //            signingCredentials: creds
+    //        );
+
+    //        return new JwtSecurityTokenHandler().WriteToken(token);
+    //    }
+
+
+        //驗證 Email
+        private string GenerateEmailVerifyToken(UUser user)
         {
+
+           
+
             var claims = new[]
             {
-        new Claim(JwtRegisteredClaimNames.Email, email),
+        new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
+        new Claim(JwtRegisteredClaimNames.Email, user.Email),
+        new Claim("purpose", "email_verify"),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
     };
 
@@ -156,16 +200,17 @@ namespace gym_api.Controllers.user
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(30),
+                expires: DateTime.UtcNow.AddMinutes(30),
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        //驗證 Email
+
+
         [HttpGet("verify-email")]
-        public async Task<IActionResult> VerifyEmail(string token)
+        public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
             var handler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]);
@@ -183,19 +228,28 @@ namespace gym_api.Controllers.user
                     IssuerSigningKey = new SymmetricSecurityKey(key)
                 }, out _);
 
-                var email = claims.FindFirst(JwtRegisteredClaimNames.Email)?.Value
-           ?? claims.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                //  檢查用途
+                var purpose = claims.FindFirst("purpose")?.Value;
+                if (purpose != "email_verify")
+                    return BadRequest("Token 類型錯誤");
+
+                //  用 UserId 查詢
+                var userId = claims.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+                if (!int.TryParse(userId, out int id))
+                    return BadRequest("Token 資料錯誤");
 
                 var user = await _context.UUsers
-                    .FirstOrDefaultAsync(x => x.Email == email);
+                    .FirstOrDefaultAsync(x => x.UserId == id);
 
                 if (user == null)
                     return BadRequest("使用者不存在");
 
-                if (user.EmailVerifiedAt != null)
-                    return BadRequest("此帳號已驗證過");
+                // 已驗證直接成功
+                if (user.IsEmailVerified)
+                    return Ok(new { success = true, message = "帳號已驗證" });
 
-                user.EmailVerifiedAt = DateTime.Now;
+                user.EmailVerifiedAt = DateTime.UtcNow;
                 user.Status = 1;
                 user.IsEmailVerified = true;
 
