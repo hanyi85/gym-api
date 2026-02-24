@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace gym_api.Models
+namespace gym_api.Models.UDTO
 {
     public class RegisterDto
     {

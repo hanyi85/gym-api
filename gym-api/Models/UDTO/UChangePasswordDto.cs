@@ -1,4 +1,4 @@
-﻿namespace gym_api.Models
+﻿namespace gym_api.Models.UDTO
 {
     public class UChangePasswordDto
     {

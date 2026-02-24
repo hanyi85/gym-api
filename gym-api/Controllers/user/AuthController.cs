@@ -1,4 +1,5 @@
 ﻿using gym_api.Models;
+using gym_api.Models.UDTO;
 using gym_api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
