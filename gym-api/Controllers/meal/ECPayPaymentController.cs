@@ -27,7 +27,8 @@ namespace gym_api.Controllers.meal
             [HttpPost("Create")]
             public IActionResult CreatePayment([FromBody] MealCreatePaymentDto dto)
             {
-                var order = _context.TMealOrders
+            Console.WriteLine("新增訂單 進來了");
+            var order = _context.TMealOrders
                     .FirstOrDefault(o => o.FOrderId == dto.OrderId);
 
                 if (order == null)
@@ -48,7 +49,7 @@ namespace gym_api.Controllers.meal
                     { "TotalAmount", order.FTotalAmount.ToString() },
                     { "TradeDesc", "健身餐訂單" },
                     { "ItemName", "健身餐一批" },
-                    { "ReturnURL", "https://127.0.0.1:4040/api/ECPayPayment/callback" },
+                    { "ReturnURL", "https://indehiscent-bristol-enragedly.ngrok-free.dev/api/ECPayPayment/Callback" },
                     { "ClientBackURL", "http://localhost:5173/meals/result/" + dto.OrderId },
                     { "ChoosePayment", "ALL" },
                     { "EncryptType", "1" }
@@ -111,32 +112,44 @@ namespace gym_api.Controllers.meal
         [HttpPost("Callback")]
         public IActionResult Callback()
         {
+            Console.WriteLine(" Callback 進來了");
+
             var form = Request.Form.ToDictionary(x => x.Key, x => x.Value.ToString());
 
+            foreach (var item in form)
+            {
+                Console.WriteLine($"{item.Key} = {item.Value}");
+            }
+
             // 1️ 驗證 CheckMacValue
-            if (!ValidateCheckMacValue(form))
+            if (!form.ContainsKey("CheckMacValue"))
+            {
+                Console.WriteLine(" 缺少 CheckMacValue (可能是 ClientBackURL)");
+                return Content("1|OK");
+            }
+
+            bool isValid = ValidateCheckMacValue(form);
+            Console.WriteLine("驗證結果: " + isValid);
+
+            if (!isValid)
             {
                 return Content("0|CheckMacValue 驗證失敗");
             }
 
             // 2️ 判斷是否付款成功
-            if (form["RtnCode"] == "1")
+            if (form.ContainsKey("RtnCode") && form["RtnCode"] == "1")
             {
                 string merchantTradeNo = form["MerchantTradeNo"];
-
-                // 建議你在 CreatePayment 時把 orderId 存進 MerchantTradeNo
-                // 例如：TEST20240201_5 (5=orderId)
-
                 int orderId = ParseOrderId(merchantTradeNo);
+                Console.WriteLine("解析出的 orderId = " + orderId);
 
-                var order = _context.TMealOrders
-                    .FirstOrDefault(o => o.FOrderId == orderId);
+                var order = _context.TMealOrders.FirstOrDefault(o => o.FOrderId == orderId);
+                Console.WriteLine(order == null ? "找不到訂單" : " 找到訂單");
 
                 if (order != null)
                 {
-                    order.FOrderStatus = "Paid";
+                    order.FOrderStatus = "已付款，待取餐";
                     order.FOrderAt = DateTime.Now;
-
                     _context.SaveChanges();
                 }
             }
