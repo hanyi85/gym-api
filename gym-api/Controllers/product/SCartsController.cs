@@ -1,22 +1,23 @@
-﻿using System;
+﻿using gym_api.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using gym_api.Models;
-using Microsoft.AspNetCore.Http;
 
 namespace gym_api.Controllers.product
 {
-    [Route("api/[controller]")]
+    [Route("api/SCarts")]
     [ApiController] // 啟用 API 自動行為與 Swagger 偵測
     [Tags("購物車管理")] // 在 Swagger UI 上顯示的分類標籤
-    public class SCartsApiController : ControllerBase
+    public class SCartsController : ControllerBase
     {
         private readonly dbFitness2Context _context;
 
-        public SCartsApiController(dbFitness2Context context)
+        public SCartsController(dbFitness2Context context)
         {
             _context = context;
         }
@@ -76,52 +77,40 @@ namespace gym_api.Controllers.product
         /// 修改購物車項目
         /// </summary>
         [HttpPut("{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> PutSCart(int id, SCart sCart)
+        public async Task<IActionResult> UpdateQuantity(int id, [FromBody] int newQty)
         {
-            if (id != sCart.CartId)
-            {
-                return BadRequest("ID 不符");
-            }
+            var sCart = await _context.SCarts.FindAsync(id);
+            if (sCart == null) return NotFound();
 
-            _context.Entry(sCart).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!SCartExists(id))
-                {
-                    return NotFound();
-                }
-                throw;
-            }
-
-            return NoContent();
+            sCart.Quantity = newQty;
+            await _context.SaveChangesAsync();
+            return Ok();
         }
 
         /// <summary>
         /// 刪除購物車項目
         /// </summary>
         [HttpDelete("{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteSCart(int id)
         {
             var sCart = await _context.SCarts.FindAsync(id);
             if (sCart == null)
             {
-                return NotFound();
+                return NotFound(new { message = "找不到該項購物車商品" });
             }
 
             _context.SCarts.Remove(sCart);
-            await _context.SaveChangesAsync();
 
-            return NoContent();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "刪除時發生錯誤: " + ex.Message });
+            }
+
+            return Ok(new { message = "成功從購物車移除商品" });
         }
 
         private bool SCartExists(int id)
@@ -168,6 +157,31 @@ namespace gym_api.Controllers.product
             {
                 return StatusCode(500, "儲存購物車時發生錯誤：" + ex.Message);
             }
+        }
+
+        [HttpGet("User/{userId}")]
+        public async Task<ActionResult<IEnumerable<object>>> GetCartByUser(int userId)
+        {
+            var cartItems = await _context.SCarts
+        .Include(s => s.Spec)
+            .ThenInclude(spec => spec.PIdNavigation)
+                .ThenInclude(p => p.SImages) 
+        .Include(s => s.Spec)
+            .ThenInclude(spec => spec.SImages) 
+                .Where(s => s.UserId == userId)
+                .Select(s => new {
+                    CartId = s.CartId,
+                    SpecId = s.SpecId,
+                    Quantity = s.Quantity,
+                    Price = s.Price,
+                    Name = s.Spec.PIdNavigation.PName + " - " + s.Spec.SpecName,
+                    ImagePath = s.Spec.SImages.Where(img => img.ImageType == "Spec").Select(img => img.Picture).FirstOrDefault()
+                        ?? s.Spec.PIdNavigation.SImages.Where(img => img.ImageType == "Main").Select(img => img.Picture).FirstOrDefault(),
+                    Subtotal = s.Price * s.Quantity
+                })
+                .ToListAsync();
+
+            return Ok(cartItems);
         }
     }
 }
