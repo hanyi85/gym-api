@@ -85,6 +85,12 @@ namespace gym_api.Controllers.product
                     CommentTime = c.CommentTime.ToString("yyyy-MM-dd HH:mm")
                 }).ToList(),
 
+                ImageList = product.SImages
+             .OrderByDescending(img => img.SpecId == spec.SpecId) 
+             .ThenByDescending(img => img.MainPicture)          
+             .Select(img => img.Picture)
+             .ToList(),
+
                 ImagePath = product.SImages
                     .OrderByDescending(img => img.SpecId == spec.SpecId)
                     .ThenByDescending(img => img.MainPicture)

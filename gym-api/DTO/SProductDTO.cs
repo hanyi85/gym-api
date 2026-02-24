@@ -7,6 +7,7 @@
         public decimal Price { get; set; }
         public string SpecName { get; set; }
         public string ImagePath { get; set; }
+        public List<string> ImageList { get; set; } = new List<string>();
 
         public string CategoryName { get; set; }
         public string Description { get; set; }
