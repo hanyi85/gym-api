@@ -203,6 +203,8 @@ namespace gym_api.Controllers.user
         [HttpGet("verify-email")]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
+            Console.WriteLine("====== 收到的 token ======");
+            Console.WriteLine(token);
             var handler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]);
 
@@ -264,6 +266,7 @@ namespace gym_api.Controllers.user
         [HttpPost("resend-verify-email")]
         public async Task<IActionResult> ResendVerifyEmail()
         {
+            
             // 從 JWT 取得 userId
             var userIdClaim = User.FindFirst("userId")?.Value;
 
