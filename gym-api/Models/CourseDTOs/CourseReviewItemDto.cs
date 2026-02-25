@@ -4,6 +4,7 @@
     {
         public int ReviewId { get; set; }
         public int UserId { get; set; }
+        public string UserName { get; set; } = "匿名學員";
         public int CourseBookingId { get; set; }
 
         public int Rating { get; set; }
