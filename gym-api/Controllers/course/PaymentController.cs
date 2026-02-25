@@ -1,7 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using gym_api.Models;
 using gym_api.Services;
-using System.Text;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace gym_api.Controllers.course
 {
@@ -11,10 +14,11 @@ namespace gym_api.Controllers.course
     public class PaymentController : ControllerBase
     {
         private readonly NewebPayService _newebPay;
-
-        public PaymentController(NewebPayService newebPay)
+        private readonly dbFitness2Context _context;
+        public PaymentController(NewebPayService newebPay, dbFitness2Context context)
         {
             _newebPay = newebPay;
+            _context = context;
         }
 
         // ===============================
@@ -138,6 +142,45 @@ namespace gym_api.Controllers.course
             // 專題先不驗也可以，先導回成功頁，確保流程跑通
 
             return Redirect("http://localhost:5173/courses/booking-success?paid=true");
+        }
+
+        [AllowAnonymous]
+        [HttpGet("newebpay/status")]
+        public async Task<IActionResult> QueryStatus(int courseBookingId)
+        {
+            var booking = await _context.CCourseBookings
+                .FirstOrDefaultAsync(x => x.CourseBookingId == courseBookingId);
+
+            if (booking == null)
+                return NotFound("找不到訂單");
+
+            if (booking.PaymentStatus == "已付款")
+                return Ok("已付款");
+
+            // 這裡應該改成真的去查藍新
+            // 目前先做 demo 測試成功版
+            // 你等下再改成真的 QueryTradeInfo
+
+            booking.PaymentStatus = "已付款";
+            booking.Status = "已報名";
+            booking.PaymentMethod = "信用卡";
+
+            await _context.SaveChangesAsync();
+
+            return Ok("付款成功，已更新資料庫");
+        }
+        [HttpGet("booking-id-by-schedule")]
+        public async Task<IActionResult> GetBookingIdBySchedule(int scheduleId, int userId = 1)
+        {
+            var id = await _context.CCourseBookings
+                .Where(x => x.ScheduleId == scheduleId && x.UserId == userId)
+                .OrderByDescending(x => x.CourseBookingId)
+                .Select(x => x.CourseBookingId)
+                .FirstOrDefaultAsync();
+
+            if (id == 0) return NotFound("找不到該 schedule 的訂單");
+
+            return Ok(new { courseBookingId = id });
         }
     }
 }
