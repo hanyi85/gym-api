@@ -1,5 +1,7 @@
-﻿using System.Net;
+﻿using NuGet.Common;
+using System.Net;
 using System.Net.Mail;
+using static gym_api.Services.EmailService;
 
 namespace gym_api.Services
 {
@@ -14,6 +16,8 @@ namespace gym_api.Services
 
         public async Task SendVerifyEmail(string toEmail, string verifyLink)
         {
+           
+            Console.WriteLine("有進到 resend-email");
             var subject = "請驗證您的帳號";
 
             var body = $@"
@@ -69,5 +73,8 @@ namespace gym_api.Services
 
             await smtpClient.SendMailAsync(mailMessage);
         }
+
+   
+           
     }
 }

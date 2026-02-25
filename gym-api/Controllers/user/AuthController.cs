@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages.Manage;
 using NuGet.Common;
 using System;
 using System.Collections.Generic;
@@ -91,7 +92,7 @@ namespace gym_api.Controllers.user
             // 檢查是否完成 Email 驗證 bool
             if (!user.IsEmailVerified)
             {
-                return Unauthorized(new
+                return Ok(new
                 {
                     needVerify = true,
                     message = "請先完成電子郵件驗證"
@@ -109,6 +110,7 @@ namespace gym_api.Controllers.user
             });
         }
 
+       
         //忘記密碼
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(UForgotPasswordDto dto)
@@ -229,20 +231,17 @@ namespace gym_api.Controllers.user
             _context.UUsers.Add(user);
             await _context.SaveChangesAsync();
 
-            // 產生驗證信
-            //var verifyToken = GenerateEmailVerifyToken(user);
-            //var verifyLink = $"http://localhost:5173/users/verifyEmail?token={verifyToken}";
-            // await _emailService.SendVerifyEmail(dto.Email, verifyLink);
-
             // 產生驗證 token
             var verifyToken = GenerateEmailVerifyToken(user);
 
             // 一定要 UrlEncode
             var encodedToken = WebUtility.UrlEncode(verifyToken);
 
+            // 組驗證連結（用 encodedToken）
             var verifyLink = $"http://localhost:5173/users/verify-email?token={encodedToken}";
 
-            
+            // 寄信
+            await _emailService.SendVerifyEmail(dto.Email, verifyLink);
 
             // 暫時改成回傳連結（測試用）
             return Ok(new
@@ -257,6 +256,7 @@ namespace gym_api.Controllers.user
 
         private string GenerateEmailVerifyToken(UUser user)
         {
+            
             var claims = new[]
             {
         new Claim("userId", user.UserId.ToString()),
@@ -283,7 +283,7 @@ namespace gym_api.Controllers.user
         }
 
 
-        //新用戶驗證信箱
+        //驗證 token
         [HttpGet("verify-email")]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
