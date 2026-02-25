@@ -1,16 +1,19 @@
 ﻿using gym_api.Models;
+using gym_api.Models.UDTO;
+using gym_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
-using System.IdentityModel.Tokens.Jwt;
-using gym_api.Models.UDTO;
 
 namespace gym_api.Controllers.user
 {
@@ -83,6 +86,7 @@ namespace gym_api.Controllers.user
             return Ok(new { message = "更新成功" });
         }
         //修改密碼
+        [Authorize]
         [HttpPut("change-password")]
         public async Task<IActionResult> ChangePassword(UChangePasswordDto dto)
         {
@@ -93,14 +97,24 @@ namespace gym_api.Controllers.user
             if (user == null)
                 return NotFound("找不到使用者");
 
+            if (user.PasswordSalt == null 
+                || user.PasswordSalt.Length == 0 
+                || user.PasswordSalt.All(b => b == 0))
+            {
+                return BadRequest("帳號尚未完成密碼升級，請重新登入");
+            }
             using var hmac = new HMACSHA512(user.PasswordSalt);
 
             var oldHash = Convert.ToBase64String(
                 hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.OldPassword))
             );
 
-            if (oldHash != user.Password)
+            if (!CryptographicOperations.FixedTimeEquals(
+    Convert.FromBase64String(oldHash),
+    Convert.FromBase64String(user.Password)))
+            {
                 return BadRequest("舊密碼錯誤");
+            }
 
             using var newHmac = new HMACSHA512();
 
@@ -113,6 +127,7 @@ namespace gym_api.Controllers.user
 
             return Ok("密碼修改成功");
         }
+       
 
         [Authorize]
         [HttpPost("upload-avatar")]

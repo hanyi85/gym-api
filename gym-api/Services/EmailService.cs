@@ -14,29 +14,60 @@ namespace gym_api.Services
 
         public async Task SendVerifyEmail(string toEmail, string verifyLink)
         {
+            var subject = "請驗證您的帳號";
+
+            var body = $@"
+                <h2>帳號驗證</h2>
+                <p>請點擊下方連結完成驗證：</p>
+                <a href='{verifyLink}'>點我驗證</a>
+            ";
+
+            await SendEmail(toEmail, subject, body);
+        }
+
+        public async Task SendResetPasswordEmail(string toEmail, string resetLink)
+        {
+            var subject = "重設您的密碼";
+
+            var body = $@"
+                <h2>密碼重設</h2>
+                <p>請點擊下方連結重設密碼：</p>
+                <a href='{resetLink}'>重設密碼</a>
+                <p>此連結 15 分鐘內有效</p>
+            ";
+
+            await SendEmail(toEmail, subject, body);
+        }
+
+        private async Task SendEmail(string toEmail, string subject, string body)
+        {
             var smtp = _config.GetSection("SmtpSettings");
 
-            var client = new SmtpClient(smtp["Host"])
+            var smtpClient = new SmtpClient(smtp["Host"])
             {
                 Port = int.Parse(smtp["Port"]),
                 Credentials = new NetworkCredential(
                     smtp["Username"],
                     smtp["Password"]
                 ),
-                EnableSsl = true
+                EnableSsl = true,
             };
 
-            var mail = new MailMessage
+            var mailMessage = new MailMessage
             {
                 From = new MailAddress(smtp["From"]),
-                Subject = "請驗證您的帳號",
-                Body = $"請點擊以下連結完成驗證：\n{verifyLink}",
-                IsBodyHtml = false
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = true,
             };
 
-            mail.To.Add(toEmail);
+            mailMessage.To.Add(toEmail);
 
-            await client.SendMailAsync(mail);
+            Console.WriteLine("==== 測試寄信 ====");
+            Console.WriteLine($"To: {toEmail}");
+            Console.WriteLine($"Subject: {subject}");
+
+            await smtpClient.SendMailAsync(mailMessage);
         }
     }
 }
