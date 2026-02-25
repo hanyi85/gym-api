@@ -19,17 +19,35 @@ public class SCartsController : ControllerBase
     public async Task<ActionResult<SCartPageResponseDTO>> GetCart(int userId)
     {
         var dbItems = await _context.SCarts
-            .Where(c => c.UserId == userId)
-            .Include(c => c.Spec)
-            .ThenInclude(s => s.PIdNavigation)
-            .ToListAsync();
+     .Where(c => c.UserId == userId)
+     .Include(c => c.Spec)
+         .ThenInclude(s => s.SImages)          
+     .Include(c => c.Spec)
+         .ThenInclude(s => s.PIdNavigation)
+             .ThenInclude(p => p.SImages)       
+     .ToListAsync();
 
         var itemList = dbItems.Select(c => {
-            var bestImage = c.Spec.SImages
-                .OrderBy(img => img.ImageType == "Spec" ? 1 : (img.ImageType == "Main" ? 2 : 3))
-                .ThenBy(img => img.Sort)
-                .Select(img => img.Picture) 
+            string? bestImage = null;
+
+            bestImage = c.Spec.SImages
+                .Where(img => img.ImageType == "Spec")
+                .OrderBy(img => img.Sort)
+                .Select(img => img.Picture)
                 .FirstOrDefault();
+
+            if (bestImage == null)
+            {
+                bestImage = c.Spec.PIdNavigation.SImages
+                    .Where(img => img.ImageType == "Main")
+                    .OrderBy(img => img.Sort)
+                    .Select(img => img.Picture)
+                    .FirstOrDefault();
+            }
+
+            bestImage ??= "images/default.png";
+
+            bestImage = bestImage.Replace("\\", "/");
 
             return new SCartItemListDTO
             {
@@ -39,13 +57,11 @@ public class SCartsController : ControllerBase
                 Price = c.Spec.DiscountPrice ?? c.Spec.Price, 
                 OriginPrice = c.Spec.Price,
                 Quantity = c.Quantity,
-                Image = _imageBaseUrl + (bestImage ?? "images/default.png").Replace("\\", "/")
+                Image = (bestImage ?? "images/default.png").Replace("\\", "/")
             };
         }).ToList();
 
-        // 計算小計
         decimal subtotal = itemList.Sum(i => i.Price * i.Quantity);
-        // 運費邏輯：滿 899 免運，否則 80 (購物車為空時為 0)
         int shipping = (subtotal >= 899 || subtotal == 0) ? 0 : 80;
 
         return Ok(new SCartPageResponseDTO
@@ -63,12 +79,17 @@ public class SCartsController : ControllerBase
         var spec = await _context.SSpecifications.FindAsync(dto.SpecId);
         if (spec == null) return NotFound("找不到該商品規格");
 
+        decimal finalPrice = spec.DiscountPrice ?? spec.Price;
+
+        if (dto.IsAddon) dto.Quantity = 1;
+
         var existingItem = await _context.SCarts
             .FirstOrDefaultAsync(c => c.UserId == dto.UserId && c.SpecId == dto.SpecId);
 
         if (existingItem != null)
         {
             existingItem.Quantity += dto.Quantity;
+            existingItem.TimeStamp = DateTime.Now;
         }
         else
         {
@@ -77,7 +98,8 @@ public class SCartsController : ControllerBase
                 UserId = dto.UserId,
                 SpecId = dto.SpecId,
                 Quantity = dto.Quantity,
-                Price = spec.DiscountPrice ?? spec.Price 
+                Price = finalPrice, 
+                TimeStamp = DateTime.Now
             };
             _context.SCarts.Add(newItem);
         }
@@ -86,30 +108,44 @@ public class SCartsController : ControllerBase
         return Ok(new { message = "已加入購物車" });
     }
 
-    [HttpGet("Recommendations")]
-    public async Task<ActionResult<IEnumerable<ProductAddonDTO>>> GetRecommendations()
+    [HttpGet("Recommendations/{userId}")]
+    public async Task<ActionResult<IEnumerable<ProductAddonDTO>>> GetRecommendations(int userId)
     {
-        var products = await _context.SSpecifications
+        var cartSpecIds = await _context.SCarts
+            .Where(c => c.UserId == userId)
+            .Select(c => c.SpecId)
+            .Distinct()
+            .ToListAsync();
+
+        var specs = await _context.SSpecifications
+            .Where(s => !cartSpecIds.Contains(s.SpecId)) 
             .Include(s => s.PIdNavigation)
-            .Include(s => s.SImages) 
-            .OrderBy(x => Guid.NewGuid()) 
+                .ThenInclude(p => p.SImages)
+            .Include(s => s.SImages)
+            .OrderBy(x => Guid.NewGuid())
             .Take(6)
             .ToListAsync();
 
-        var result = products.Select(s => {
-            var bestImage = s.SImages
-                .OrderBy(img => img.ImageType == "Spec" ? 1 : (img.ImageType == "Main" ? 2 : 3))
-                .ThenBy(img => img.Sort)
-                .Select(img => img.Picture) 
-                .FirstOrDefault();
+        var result = specs.Select(s =>
+        {
+            var bestImage =
+                s.SImages.OrderBy(i => i.Sort).Select(i => i.Picture).FirstOrDefault()
+                ?? s.PIdNavigation.SImages.OrderBy(i => i.Sort).Select(i => i.Picture).FirstOrDefault()
+                ?? "images/default.png";
+
+            var addonPrice = s.DiscountPrice ?? s.Price;
 
             return new ProductAddonDTO
             {
                 SpecId = s.SpecId,
-                Name = s.PIdNavigation.PName,
-                Price = s.DiscountPrice ?? s.Price,
+                Name = s.PIdNavigation.PName +
+                       (string.IsNullOrEmpty(s.SpecName) ? "" : $" - {s.SpecName}"),
+
+                Price = s.Price,
                 OriginPrice = s.Price,
-                Image = _imageBaseUrl + (bestImage ?? "images/default.png").Replace("\\", "/")
+                AddonPrice = addonPrice,
+
+                Image = bestImage.Replace("\\", "/")
             };
         }).ToList();
 
