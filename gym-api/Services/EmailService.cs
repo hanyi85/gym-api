@@ -16,33 +16,112 @@ namespace gym_api.Services
 
         public async Task SendVerifyEmail(string toEmail, string verifyLink)
         {
-           
-            Console.WriteLine("有進到 resend-email");
-            var subject = "請驗證您的帳號";
+            var subject = "【練吧 Fitness Bar】帳號驗證通知";
 
             var body = $@"
-                <h2>帳號驗證</h2>
-                <p>請點擊下方連結完成驗證：</p>
-                <a href='{verifyLink}'>點我驗證</a>
-            ";
+    <div style='font-family: Arial, sans-serif; line-height:1.6; color:#333;'>
+
+        <h2 style='color:#f38d00;'>歡迎加入 練吧 Fitness Bar</h2>
+
+        <p>親愛的會員您好：</p>
+
+        <p>
+        感謝您註冊 <strong>練吧 Fitness Bar</strong>。
+        為保障您的帳號安全，請點擊下方按鈕完成信箱驗證：
+        </p>
+
+        <p style='margin:30px 0;'>
+            <a href='{verifyLink}'
+               style='background-color:#f38d00;
+                      color:#ffffff;
+                      padding:12px 24px;
+                      text-decoration:none;
+                      border-radius:6px;
+                      display:inline-block;'>
+                立即驗證帳號
+            </a>
+        </p>
+
+        <p>
+        若您無法點擊按鈕，請複製以下連結至瀏覽器開啟：
+        </p>
+
+        <p style='word-break:break-all; font-size:12px; color:#666;'>
+            {verifyLink}
+        </p>
+
+        <hr style='margin:30px 0;' />
+
+        <p style='font-size:12px; color:#999;'>
+        此為系統自動發送信件，請勿直接回覆。<br/>
+        若您並未申請帳號，請忽略此封信件。
+        </p>
+
+        <p style='font-size:12px; color:#999;'>
+        © {DateTime.Now.Year} 練吧 Fitness Bar. All Rights Reserved.
+        </p>
+
+    </div>
+    ";
 
             await SendEmail(toEmail, subject, body);
         }
-
         public async Task SendResetPasswordEmail(string toEmail, string resetLink)
         {
-            var subject = "重設您的密碼";
+            var subject = "【練吧 Fitness Bar】密碼重設通知";
 
             var body = $@"
-                <h2>密碼重設</h2>
-                <p>請點擊下方連結重設密碼：</p>
-                <a href='{resetLink}'>重設密碼</a>
-                <p>此連結 15 分鐘內有效</p>
-            ";
+    <div style='font-family: Arial, sans-serif; line-height:1.6; color:#333;'>
+
+        <h2 style='color:#f38d00;'>密碼重設申請</h2>
+
+        <p>親愛的會員您好：</p>
+
+        <p>
+        我們收到一筆重設密碼的申請。
+        若此操作為您本人所提出，請於 15 分鐘內點擊下方按鈕完成密碼重設：
+        </p>
+
+        <p style='margin:30px 0;'>
+            <a href='{resetLink}'
+               style='background-color:#f38d00;
+                      color:#ffffff;
+                      padding:12px 24px;
+                      text-decoration:none;
+                      border-radius:6px;
+                      display:inline-block;'>
+                重設密碼
+            </a>
+        </p>
+
+        <p>
+        若您無法點擊按鈕，請複製以下連結至瀏覽器開啟：
+        </p>
+
+        <p style='word-break:break-all; font-size:12px; color:#666;'>
+            {resetLink}
+        </p>
+
+        <p style='margin-top:20px;'>
+        此連結將於 <strong>15 分鐘後失效</strong>。<br/>
+        若您未提出此申請，請忽略此信件，您的帳號仍然安全。
+        </p>
+
+        <hr style='margin:30px 0;' />
+
+        <p style='font-size:12px; color:#999;'>
+        此為系統自動發送信件，請勿直接回覆。
+        </p>
+
+        <p style='font-size:12px; color:#999;'>
+        © {DateTime.Now.Year} 練吧 Fitness Bar. All Rights Reserved.
+        </p>
+
+    </div>
+    ";
 
             await SendEmail(toEmail, subject, body);
         }
-
         private async Task SendEmail(string toEmail, string subject, string body)
         {
             var smtp = _config.GetSection("SmtpSettings");

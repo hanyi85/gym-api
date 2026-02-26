@@ -158,6 +158,22 @@ namespace gym_api.Controllers.user
 
             return Ok("頭像上傳成功");
         }
+
+        //移除頭像
+        [HttpDelete("avatar")]
+        public async Task<IActionResult> RemoveAvatar()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var user = await _context.UUsers.FindAsync(userId);
+
+            if (user == null) return NotFound();
+
+            user.Image = null;
+
+            await _context.SaveChangesAsync();
+
+            return Ok("已移除頭像");
+        }
         private bool UUserExists(int id)
         {
             return _context.UUsers.Any(e => e.UserId == id);
