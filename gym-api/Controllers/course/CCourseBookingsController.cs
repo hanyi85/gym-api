@@ -161,5 +161,24 @@ namespace gym_api.Controllers.course
 
             return Ok(new { ok = true, CourseBookingId = booking.CourseBookingId });
         }
+
+        [HttpPost("checkin/{bookingId}")]
+        public async Task<IActionResult> CheckIn(int bookingId)
+        {
+            var booking = await _context.CCourseBookings
+                .FirstOrDefaultAsync(b => b.CourseBookingId == bookingId && !b.IsDeleted);
+
+            if (booking == null) return NotFound("找不到預約");
+
+            if (booking.Status == "已報到")
+                return BadRequest("已報到過");
+
+            booking.Status = "已報到";
+            booking.UpdatedAt = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "報到成功", bookingId });
+        }
     }
 }
