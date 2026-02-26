@@ -1,0 +1,125 @@
+﻿@model IEnumerable<gym_api.Models.SOrder>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.MName)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.MPhone)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Email)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.MAddress)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Date)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.OStatus)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.ShipFee)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.HandlingFee)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Total)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PayStatus)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Note)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.OrderNumber)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Dis)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Pay)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Ship)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.User)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.MName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.MPhone)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Email)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.MAddress)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Date)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.OStatus)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.ShipFee)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.HandlingFee)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Total)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.PayStatus)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Note)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.OrderNumber)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Dis.Code)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Pay.Payment)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Ship.Shipping)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.User.Account)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.OId">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.OId">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.OId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>

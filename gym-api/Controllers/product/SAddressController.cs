@@ -4,6 +4,7 @@ namespace gym_api.Controllers.product
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Tags("地址管理")]
     public class SAddressController : ControllerBase
     {
         // 暫時硬編碼的資料字典

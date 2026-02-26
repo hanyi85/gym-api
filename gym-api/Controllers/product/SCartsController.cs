@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 [Route("api/[controller]")]
 [ApiController]
+[Tags("商城購物車管理")]
 public class SCartsController : ControllerBase
 {
     private readonly dbFitness2Context _context;
