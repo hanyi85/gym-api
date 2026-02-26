@@ -1,4 +1,4 @@
-﻿using gym_api.DTO; // 確保引用了你的 DTO 命名空間
+﻿using gym_api.DTO; 
 using gym_api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
