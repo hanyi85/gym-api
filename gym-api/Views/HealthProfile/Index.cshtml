@@ -1,0 +1,77 @@
+﻿@model IEnumerable<gym_api.Models.UUserHealthProfile>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Height)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Weight)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Bmi)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Goal)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.MedicalNote)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.CreatedAt)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.UpdatedAt)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.User)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Height)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Weight)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Bmi)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Goal)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.MedicalNote)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.CreatedAt)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.UpdatedAt)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.User.Account)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.HealthProfileId">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.HealthProfileId">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.HealthProfileId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>

@@ -283,7 +283,7 @@ namespace gym_api.Controllers.user
         }
 
 
-        //驗證 token
+        //登入驗證 token
         [HttpGet("verify-email")]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
@@ -323,17 +323,24 @@ namespace gym_api.Controllers.user
                 if (user == null)
                     return BadRequest("使用者不存在");
 
-                // 已驗證直接成功
-                if (user.IsEmailVerified)
-                    return Ok(new { success = true, message = "帳號已驗證" });
+                // 已驗證直接成功 + 發 token
+                if (!user.IsEmailVerified)
+                {
+                    user.EmailVerifiedAt = DateTime.UtcNow;
+                    user.Status = 1;
+                    user.IsEmailVerified = true;
 
-                user.EmailVerifiedAt = DateTime.UtcNow;
-                user.Status = 1;
-                user.IsEmailVerified = true;
+                    await _context.SaveChangesAsync();
+                }
 
-                await _context.SaveChangesAsync();
+                var accessToken = _jwtService.GenerateAccessToken(user);
 
-                return Ok(new { success = true });
+                return Ok(new
+                {
+                    success = true,
+                    token = accessToken
+                });
+
             }
             catch (SecurityTokenExpiredException)
             {
