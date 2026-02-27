@@ -19,6 +19,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using Google.Apis.Auth;
 namespace gym_api.Controllers.user
 {
     [ApiController]
@@ -110,7 +111,58 @@ namespace gym_api.Controllers.user
             });
         }
 
-       
+        //google登入
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] UGoogleLoginDto dto)
+        {
+            GoogleJsonWebSignature.Payload payload;
+
+            try
+            {
+                var settings = new GoogleJsonWebSignature.ValidationSettings()
+                {
+                    Audience = new[] { "你的GoogleClientId" }
+                };
+
+                payload = await GoogleJsonWebSignature.ValidateAsync(dto.IdToken, settings);
+            }
+            catch
+            {
+                return Unauthorized("Invalid Google token");
+            }
+
+            var userEmail = payload.Email.ToLower();
+            var googleId = payload.Subject;
+
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(u => u.GoogleId == googleId || u.Email == userEmail);
+
+            if (user == null)
+            {
+                user = new UUser
+                {
+                    Name = payload.Name,
+                    Email = userEmail,
+                    GoogleId = googleId,
+                    LoginProvider = "Google",
+                    IsEmailVerified = true,
+                    EmailVerifiedAt = DateTime.UtcNow,
+                    CreatedDate = DateTime.UtcNow
+                };
+
+                _context.UUsers.Add(user);
+                await _context.SaveChangesAsync();
+            }
+
+            var token = _jwtService.GenerateAccessToken(user);
+
+            return Ok(new
+            {
+                token,
+                userId = user.UserId,
+                name = user.Name
+            });
+        }
         //忘記密碼
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(UForgotPasswordDto dto)
