@@ -57,7 +57,6 @@ namespace gym_api.Controllers.product
 
         // POST: api/SOrders
         [HttpPost]
-        [HttpPost]
         public async Task<IActionResult> CreateOrder([FromBody] SOrderDTO dto)
         {
             if (dto == null || dto.items == null || !dto.items.Any())
@@ -186,6 +185,102 @@ namespace gym_api.Controllers.product
         private bool SOrderExists(int id)
         {
             return _context.SOrders.Any(e => e.OId == id);
+        }
+
+        // GET: api/SOrders/byOrderNumber/ORDXXXX
+        [HttpGet("byOrderNumber/{orderNumber}")]
+        public async Task<IActionResult> GetOrderByOrderNumber(string orderNumber)
+        {
+            var apiUrl = "http://localhost:7218"; // 後端本身的網址 + 端口
+
+            var order = await _context.SOrders
+                .Include(o => o.SOrderDetails)
+                    .ThenInclude(d => d.Spec)
+                        .ThenInclude(s => s.SImages)  // 規格圖
+                .Include(o => o.SOrderDetails)
+                    .ThenInclude(d => d.Spec)
+                        .ThenInclude(s => s.PIdNavigation)  // 主商品
+                            .ThenInclude(p => p.SImages)   // 主商品圖
+                .Include(o => o.Pay)
+                .Include(o => o.Ship)
+                .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
+
+            if (order == null)
+                return NotFound(new { message = $"找不到訂單號碼 {orderNumber}" });
+
+            var result = new
+            {
+                order.OId,
+                order.OrderNumber,
+                order.Date,
+                oStatus = order.OStatus,
+                order.Total,
+                order.MName,
+                order.MPhone,
+                order.Email,
+                order.MAddress,
+                order.ShipFee,
+                order.PayStatus,
+                ship = order.Ship != null ? new { order.Ship.ShipId, order.Ship.Shipping } : null,
+                pay = order.Pay != null ? new { order.Pay.PayId, order.Pay.Payment } : null,
+                sOrderDetails = order.SOrderDetails.Select(d => new
+                {
+                    d.OdId,
+                    d.PName,
+                    d.SpecId,
+                    d.SPrice,
+                    d.Quantity,
+                    d.Subtotal,
+                    spec = d.Spec != null ? new
+                    {
+                        // ⚡ 圖片邏輯：先規格圖 > 主圖 > 預設圖
+                        ImagePath = apiUrl + "/" + (
+                            d.Spec.SImages
+                                .OrderByDescending(img => img.SpecId == d.SpecId)           // 優先規格圖
+                                .ThenByDescending(img => img.MainPicture && img.SpecId == null) // 主圖
+                                .ThenByDescending(img => img.PicId)
+                                .Select(img => img.Picture)
+                                .FirstOrDefault()
+                            ?? d.Spec.PIdNavigation.SImages
+                                .OrderByDescending(img => img.MainPicture)           // fallback 主商品圖
+                                .ThenByDescending(img => img.PicId)
+                                .Select(img => img.Picture)
+                                .FirstOrDefault()
+                            ?? "images/products/default.jpg"                         // 預設圖
+                        ).TrimStart('/')
+                    } : null
+                })
+            };
+
+            return Ok(result);
+        }
+
+        // GET: api/SOrders/byMember/47
+        [HttpGet("byMember/{userId}")]
+        public async Task<IActionResult> GetOrdersByMember(int userId)
+        {
+            // 查詢該會員的所有訂單，並依照日期倒序排列（最新的在前面）
+            var orders = await _context.SOrders
+                .Where(o => o.UserId == userId)
+                .OrderByDescending(o => o.Date)
+                .Select(o => new
+                {
+                    o.OId,
+                    o.OrderNumber,
+                    o.Date,
+                    oStatus = o.OStatus,
+                    o.Total,
+                    o.PayStatus
+                })
+                .ToListAsync();
+
+            if (orders == null || !orders.Any())
+            {
+                // 回傳空陣列而非 404，對前端處理「尚無訂單」比較方便
+                return Ok(new List<object>());
+            }
+
+            return Ok(orders);
         }
     }
 }
