@@ -57,6 +57,7 @@ namespace gym_api.Controllers.product
 
         // POST: api/SOrders
         [HttpPost]
+        [HttpPost]
         public async Task<IActionResult> CreateOrder([FromBody] SOrderDTO dto)
         {
             if (dto == null || dto.items == null || !dto.items.Any())
@@ -70,7 +71,7 @@ namespace gym_api.Controllers.product
                 {
                     var order = new SOrder
                     {
-                        UserId = 1,                 
+                        UserId = 1,
                         MName = dto.mName,
                         MPhone = dto.mPhone,
                         Email = dto.email,
@@ -81,13 +82,19 @@ namespace gym_api.Controllers.product
                         Total = dto.total,
                         Note = dto.note ?? "",
 
-                        // 📍 從 DTO 接收前端 Pinia 傳來的值
+                        // ⚡ 關鍵：只設 FK，不設 navigation property
                         PayId = dto.payId,
                         ShipId = dto.shipId,
+                        Pay = null,
+                        Ship = null,
 
                         PayStatus = "待付款",
                         OrderNumber = randomOrderNumber
                     };
+
+                    // 🔹 明確告訴 EF 這兩個 navigation 不要追蹤
+                    _context.Entry(order).Reference(o => o.Pay).IsModified = false;
+                    _context.Entry(order).Reference(o => o.Ship).IsModified = false;
 
                     _context.SOrders.Add(order);
                     await _context.SaveChangesAsync();
