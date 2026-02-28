@@ -45,17 +45,42 @@ namespace gym_api.Controllers.meal
 
             return order;
         }
-
-        // 🔥 依會員查詢訂單（Vue 必用）
-        // GET: api/TMealOrders/user/3
+        //取得使用顧客所以餐點
+        // GET: api/TMealOrders/user/{userId}
         [HttpGet("user/{userId}")]
-        public async Task<ActionResult<IEnumerable<TMealOrder>>> GetOrdersByUser(int userId)
+        public async Task<ActionResult> GetOrdersByUser(int userId)
         {
-            return await _context.TMealOrders
-                .Include(o => o.FVenue)
-                .Where(o => o.FUserId == userId)
-                .OrderByDescending(o => o.FOrderAt)
-                .ToListAsync();
+            var orders = await _context.TMealOrders
+             .Where(o => o.FUserId == userId)
+             .OrderByDescending(o => o.FOrderAt)
+             .Select(o => new
+             {
+                 o.FOrderId,
+                 o.FOrderName,
+                 o.FOrderPhone,
+                 o.FOrderEmail,
+                 o.FOrderAt,
+                 o.FTotalAmount,
+                 o.FOrderStatus,
+                 o.FPayMethod,
+                 o.FVenue,
+
+
+                 Items = o.TMealOrderItems.Select(i => new
+                 {
+                     i.FOrderItemId,            
+                     i.FMeal,
+                     i.FQty,
+                     i.FUnitPrice,
+                     i.FSubtotal,
+                     i.FPickDate,
+                     i.FPickTime,
+                     i.FQrContent,
+                     i.FPickupStatus
+                 })
+             })
+             .ToListAsync();
+            return Ok(orders);
         }
 
         // POST: api/TMealOrders
