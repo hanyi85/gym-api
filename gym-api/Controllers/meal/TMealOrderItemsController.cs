@@ -47,16 +47,30 @@ namespace gym_api.Controllers.meal
             return item;
         }
 
-        // 🔥 依訂單查詢明細（超重要）
-        // GET: api/TMealOrderItems/order/5
-        [HttpGet("order/{orderId}")]
-        public async Task<ActionResult<IEnumerable<TMealOrderItem>>> GetItemsByOrder(int orderId)
+        // 依會員ID取未取餐QRCODE
+        // GET: api/TMealOrderItems/Qrcode/{userId}
+        [HttpGet("Qrcode/{userId}")]
+        public async Task<IActionResult> GetUserQrCodes(int userId)
         {
-            return await _context.TMealOrderItems
-                .Include(i => i.FMeal)
-                .Include(i => i.FPickTime)
-                .Where(i => i.FOrderId == orderId)
+            var items = await _context.TMealOrderItems
+                .Where(i => i.FOrder.FUserId == userId && !i.FPickupStatus)
+                .Select(i => new
+                {
+                    i.FOrderItemId,
+                    i.FQrContent,
+                    i.FMeal.FMealName,
+                    i.FQty,
+                    i.FUnitPrice,
+                    i.FSubtotal,
+                    i.FPickDate,
+                    PickStart = i.FPickTime.FStartTime,
+                    PickEnd = i.FPickTime.FEndTime,
+                    VenueName = i.FOrder.FVenue.VenueName,
+                    i.FPickupStatus
+                })
                 .ToListAsync();
+
+            return Ok(items);
         }
 
         // POST: api/TMealOrderItems
