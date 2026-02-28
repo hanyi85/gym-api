@@ -121,7 +121,10 @@ namespace gym_api.Controllers.user
             {
                 var settings = new GoogleJsonWebSignature.ValidationSettings()
                 {
-                    Audience = new[] { "你的GoogleClientId" }
+                    Audience = new[]
+     {
+        _config["GoogleAuth:ClientId"]
+    }
                 };
 
                 payload = await GoogleJsonWebSignature.ValidateAsync(dto.IdToken, settings);
@@ -136,18 +139,34 @@ namespace gym_api.Controllers.user
 
             var user = await _context.UUsers
                 .FirstOrDefaultAsync(u => u.GoogleId == googleId || u.Email == userEmail);
+            if (user != null && user.GoogleId == null)
+            {
+                user.GoogleId = googleId;
+                user.LoginProvider = "Google";
+                user.IsEmailVerified = true;
+                user.EmailVerifiedAt = DateTime.UtcNow;
 
+                await _context.SaveChangesAsync();
+            }
             if (user == null)
             {
                 user = new UUser
                 {
                     Name = payload.Name,
+                    Account = payload.Email,
                     Email = userEmail,
                     GoogleId = googleId,
+
                     LoginProvider = "Google",
                     IsEmailVerified = true,
                     EmailVerifiedAt = DateTime.UtcNow,
-                    CreatedDate = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow,
+
+                    Address = "",
+                    Phone = "",
+                    Sex = "",
+                    BirthDate = DateOnly.FromDateTime(DateTime.Today),
+                    Status = 1
                 };
 
                 _context.UUsers.Add(user);
@@ -160,7 +179,9 @@ namespace gym_api.Controllers.user
             {
                 token,
                 userId = user.UserId,
-                name = user.Name
+                name = user.Name,
+                isEmailVerified = true,
+                provider = "Google"
             });
         }
         //忘記密碼
