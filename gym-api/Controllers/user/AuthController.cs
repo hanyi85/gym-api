@@ -204,12 +204,95 @@ namespace gym_api.Controllers.user
             return Ok(new { message = "若帳號存在，已寄出重設信" });
         }
 
+        //line登入
+        [HttpPost("line-login")]
+        public async Task<IActionResult> LineLogin([FromBody] ULineLoginDto dto)
+        {
+            var client = new HttpClient();
+
+            var values = new Dictionary<string, string>
+    {
+        { "grant_type", "authorization_code" },
+        { "code", dto.Code },
+        { "redirect_uri", _config["LineAuth:RedirectUri"] },
+        { "client_id", _config["LineAuth:ClientId"] },
+        { "client_secret", _config["LineAuth:ClientSecret"] }
+    };
+
+            var content = new FormUrlEncodedContent(values);
+
+            var response = await client.PostAsync("https://api.line.me/oauth2/v2.1/token", content);
+
+            if (!response.IsSuccessStatusCode)
+                return Unauthorized("LINE Token 交換失敗");
+
+            var json = await response.Content.ReadAsStringAsync();
+            var tokenData = System.Text.Json.JsonDocument.Parse(json);
+
+            var idToken = tokenData.RootElement.GetProperty("id_token").GetString();
+
+            // 解析 id_token
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(idToken);
+
+            var email = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+            var lineUserId = jwtToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+            var name = jwtToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
+
+            if (string.IsNullOrEmpty(lineUserId))
+                return Unauthorized("LINE 使用者資訊錯誤");
+
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(u => u.LineId == lineUserId || u.Email == email);
+
+            if (user != null && user.LineId == null)
+            {
+                user.LineId = lineUserId;
+                user.LoginProvider = "LINE";
+                user.IsEmailVerified = true;
+                user.EmailVerifiedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+            }
+
+            if (user == null)
+            {
+                user = new UUser
+                {
+                    Name = name ?? "",
+                    Email = email ?? "",
+                    Account = email ?? lineUserId,
+                    LineId = lineUserId,
+                    LoginProvider = "LINE",
+                    IsEmailVerified = true,
+                    EmailVerifiedAt = DateTime.UtcNow,
+                    CreatedDate = DateTime.UtcNow,
+                    Address = "",
+                    Phone = "",
+                    Sex = "",
+                    BirthDate = DateOnly.FromDateTime(DateTime.Today),
+                    Status = 1
+                };
+
+                _context.UUsers.Add(user);
+                await _context.SaveChangesAsync();
+            }
+
+            var token = _jwtService.GenerateAccessToken(user);
+
+            return Ok(new
+            {
+                token,
+                userId = user.UserId,
+                name = user.Name,
+                provider = "LINE"
+            });
+        }
 
 
+        //重設密碼 API
 
-         //重設密碼 API
-
-         [HttpPost("reset-password")]
+        [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(UResetPasswordDto dto)
         {
             var handler = new JwtSecurityTokenHandler();
