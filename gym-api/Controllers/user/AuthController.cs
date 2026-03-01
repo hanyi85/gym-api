@@ -115,6 +115,8 @@ namespace gym_api.Controllers.user
         [HttpPost("google-login")]
         public async Task<IActionResult> GoogleLogin([FromBody] UGoogleLoginDto dto)
         {
+            Console.WriteLine(dto == null ? "DTO 是 null" : "DTO 不為 null");
+            Console.WriteLine("IdToken 是否為 null: " + (dto?.IdToken == null));
             GoogleJsonWebSignature.Payload payload;
 
             try
