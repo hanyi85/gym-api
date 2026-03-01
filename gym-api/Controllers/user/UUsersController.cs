@@ -49,6 +49,7 @@ namespace gym_api.Controllers.user
                 user.Sex,
                 user.BirthDate,
                 user.Address,
+                Joined = user.CreatedDate.ToString("yyyy 年 M 月"),
                 Image = user.Image != null ? Convert.ToBase64String(user.Image) : null
             });
         }

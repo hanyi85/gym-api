@@ -45,7 +45,7 @@ namespace gym_api.Controllers.user
                 var record = new UUserWeightRecord
                 {
                     UserId = userId,
-                    RecordDate = DateOnly.FromDateTime(DateTime.Now),
+                    RecordDate = dto.RecordDate,
                     Weight = dto.Weight,
                     BodyFat = dto.BodyFat,
                     MuscleMass = dto.MuscleMass,
