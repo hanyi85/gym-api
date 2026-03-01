@@ -100,6 +100,48 @@ namespace gym_api.Controllers.user
             });
         }
 
+        ////更新目標體重
+        [HttpPut("target-weight")]
+        public async Task<IActionResult> UpdateTargetWeight([FromBody]  UUpdateTargetWeightDto dto)
+        {
+            if (dto.TargetWeight < 30 || dto.TargetWeight > 200)
+                return BadRequest("目標體重不合理");
+
+            var userId = GetCurrentUserId();
+
+            var profile = await _context.UUserHealthProfiles
+    .FirstOrDefaultAsync(x => x.UserId == userId);
+
+            if (profile == null)
+            {
+                profile = new UUserHealthProfile
+                {
+                    UserId = userId,
+                    Goal = dto.TargetWeight.ToString(),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.UUserHealthProfiles.Add(profile);
+            }
+            else
+            {
+                profile.Goal = dto.TargetWeight.ToString();
+                profile.UpdatedAt = DateTime.UtcNow;
+            }
+
+            profile.Goal = dto.TargetWeight.ToString();
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "目標體重更新成功",
+                TargetWeight = dto.TargetWeight
+            });
+        }
+
         private int GetCurrentUserId()
         {
             var claim = User.FindFirst("userId")

@@ -124,6 +124,16 @@ namespace gym_api.Controllers.user
 
             return Ok(new { message = "更新成功" });
         }
+
+
+ 
+
+        //    await _context.SaveChangesAsync();
+
+        //    return Ok(new { message = "更新成功" });
+        //}
+
+
         // 刪除紀錄
         // DELETE: api/weightrecords/{id}
         // ===============================
@@ -144,9 +154,6 @@ namespace gym_api.Controllers.user
                 return Ok(new { message = "刪除成功" });
             }
         
-        private bool UExerciseRecordExists(int id)
-        {
-            return _context.UExerciseRecords.Any(e => e.ExerciseId == id);
-        }
+    
     }
 }
