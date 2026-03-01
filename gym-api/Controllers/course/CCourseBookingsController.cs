@@ -204,8 +204,8 @@ namespace gym_api.Controllers.course
                 return BadRequest("找不到課程時段");
 
             var minutes = (startTime - DateTime.Now).TotalMinutes;
-            if (minutes <= 60)
-                return BadRequest("開課前 1 小時內不可取消");
+            if (minutes <= 300)
+                return BadRequest("開課前 5 小時內不可取消");
 
             booking.IsDeleted = true;
             booking.Status = "Canceled";
