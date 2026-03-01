@@ -183,20 +183,32 @@ namespace gym_api.Controllers.course
 
         // DELETE: /api/CourseBookings/123
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteBooking(int id)
+        public async Task<IActionResult> Cancel(int id)
         {
             var booking = await _context.CCourseBookings
                 .FirstOrDefaultAsync(b => b.CourseBookingId == id);
 
             if (booking == null) return NotFound("找不到此預約");
 
-            // ❌ 已報到不可取消（依你系統狀態字串調整）
-            if (booking.Status == "已報到" || booking.Status == "CheckedIn")
+            // ❌ 已報到不可取消
+            if (booking.Status.Contains("已報到"))
                 return BadRequest("已報到不可取消");
 
-            // ✅ 已付款也可取消：做軟刪除 + 狀態標記
+            // ✅ 開課前 1 小時內不可取消
+            var startTime = await _context.CCourseSchedules
+                .Where(s => s.ScheduleId == booking.ScheduleId && !s.IsDeleted)
+                .Select(s => s.StartTime)
+                .FirstOrDefaultAsync();
+
+            if (startTime == default)
+                return BadRequest("找不到課程時段");
+
+            var minutes = (startTime - DateTime.Now).TotalMinutes;
+            if (minutes <= 60)
+                return BadRequest("開課前 1 小時內不可取消");
+
             booking.IsDeleted = true;
-            booking.Status = "Canceled"; // 或 "已取消"
+            booking.Status = "Canceled";
 
             await _context.SaveChangesAsync();
             return Ok(new { message = "已取消預約" });
