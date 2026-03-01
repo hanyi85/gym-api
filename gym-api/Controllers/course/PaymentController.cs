@@ -136,38 +136,63 @@ namespace gym_api.Controllers.course
         }
 
         [HttpPost("newebpay/return")]
-        public IActionResult Return()
+        public async Task<IActionResult> Return()
         {
-            // 藍新會用 Form POST 回來（TradeInfo/TradeSha 在 Request.Form）
-            // 專題先不驗也可以，先導回成功頁，確保流程跑通
+            // 1) 取回 TradeInfo/TradeSha
+            var tradeInfo = Request.Form["TradeInfo"].ToString();
+            var tradeSha = Request.Form["TradeSha"].ToString();
 
-            return Redirect("http://localhost:5173/courses/booking-success?paid=true");
-        }
+            // 專題先不驗也行，但至少要有 TradeInfo
+            if (string.IsNullOrEmpty(tradeInfo))
+                return Redirect("http://localhost:5173/courses/booking-success?paid=true");
 
-        [AllowAnonymous]
-        [HttpGet("newebpay/status")]
-        public async Task<IActionResult> QueryStatus(int courseBookingId)
-        {
-            var booking = await _context.CCourseBookings
-                .FirstOrDefaultAsync(x => x.CourseBookingId == courseBookingId);
+            // 2) 解密 TradeInfo（你已經有方法）
+            var decrypted = DecryptTradeInfo(
+                tradeInfo,
+                _newebPayOptions().HashKey,
+                _newebPayOptions().HashIV
+            );
 
-            if (booking == null)
-                return NotFound("找不到訂單");
+            // 3) 解析 JSON 拿 MerchantOrderNo
+            // NewebPay 解密後是 JSON 字串，MerchantOrderNo 通常在 Result.MerchantOrderNo
+            string merchantOrderNo = "";
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(decrypted);
+                merchantOrderNo = doc.RootElement
+                    .GetProperty("Result")
+                    .GetProperty("MerchantOrderNo")
+                    .GetString() ?? "";
+            }
+            catch
+            {
+                // 解析失敗就先回首頁
+                return Redirect("http://localhost:5173/courses");
+            }
 
-            if (booking.PaymentStatus == "已付款")
-                return Ok("已付款");
+            // merchantOrderNo 長這樣： ORD BK000000123_20260301123059
+            // 或 ORD{req.OrderId}_{timestamp}
+            // 我們要把 BK 後面的數字抓出來
+            var bkIndex = merchantOrderNo.IndexOf("BK", StringComparison.OrdinalIgnoreCase);
+            if (bkIndex < 0)
+                return Redirect("http://localhost:5173/courses");
 
-            // 這裡應該改成真的去查藍新
-            // 目前先做 demo 測試成功版
-            // 你等下再改成真的 QueryTradeInfo
+            // 取 BK... 到底線前
+            var afterBk = merchantOrderNo.Substring(bkIndex); // BK000000123_...
+            var underscoreIndex = afterBk.IndexOf('_');
+            var bkPart = underscoreIndex > 0 ? afterBk.Substring(0, underscoreIndex) : afterBk;
 
-            booking.PaymentStatus = "已付款";
-            booking.Status = "已報名";
-            booking.PaymentMethod = "信用卡";
+            // bkPart = BK000000123
+            var idStr = bkPart.Replace("BK", "");
+            if (!int.TryParse(idStr, out int bookingId))
+                return Redirect("http://localhost:5173/courses");
 
-            await _context.SaveChangesAsync();
+      
 
-            return Ok("付款成功，已更新資料庫");
+            // 5) Redirect 回前端（A 版）
+            // 這邊我建議帶 bookingId，成功頁會更穩（你 QR 也需要）
+            var url = $"http://localhost:5173/courses/{Uri.EscapeDataString(slug)}/booking/success?paid=true&bookingId={bookingId}";
+            return Redirect(url);
         }
         [HttpGet("booking-id-by-schedule")]
         public async Task<IActionResult> GetBookingIdBySchedule(int scheduleId, int userId = 1)
