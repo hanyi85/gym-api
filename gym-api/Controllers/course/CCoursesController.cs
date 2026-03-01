@@ -150,6 +150,7 @@ namespace gym_api.Controllers.course
                     name = c.CourseName,
                     courseLevel = c.Courselevel,
                     price = c.Price,
+                
                     duration = c.Duration,
                     imageUrl = c.FImageUrl,
                     categoryId = c.CategoryId,
@@ -182,6 +183,7 @@ namespace gym_api.Controllers.course
                 {
                     Id = c.CourseId,
                     Title = c.CourseName,
+                    CourseLevel = c.Courselevel,
                     Category = c.Category.CategoryName,
                     Duration = c.Duration,
                     Price = c.Price,

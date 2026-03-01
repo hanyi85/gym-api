@@ -6,6 +6,7 @@
 
         public string Title { get; set; } = string.Empty;
 
+        public string CourseLevel { get; set; } = string.Empty; 
         public string Category { get; set; } = string.Empty;
 
         public string CoachName { get; set; } = string.Empty;
