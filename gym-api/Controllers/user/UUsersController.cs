@@ -1,15 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using gym_api.Models;
+using gym_api.Models.UDTO;
+using gym_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using gym_api.Models;
+using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Net;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace gym_api.Controllers.user
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
+    [Authorize]
     [Tags("會員管理")]
     public class UUsersController : ControllerBase
     {
@@ -20,88 +30,151 @@ namespace gym_api.Controllers.user
             _context = context;
         }
 
-        // GET: api/UUsers
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<UUser>>> GetUUsers()
+
+        [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
         {
-            return await _context.UUsers.ToListAsync();
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            var user = await _context.UUsers.FindAsync(userId);
+
+            if (user == null) return NotFound();
+
+            return Ok(new
+            {
+                user.Name,
+                user.Email,
+                user.Phone,
+                user.Sex,
+                user.BirthDate,
+                user.Address,
+                Joined = user.CreatedDate.ToString("yyyy 年 M 月"),
+                Image = user.Image != null ? Convert.ToBase64String(user.Image) : null
+            });
         }
 
-        // GET: api/UUsers/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<UUser>> GetUUser(int id)
+        [Authorize]
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateProfile(UUpdateUserDto dto)
         {
-            var uUser = await _context.UUsers.FindAsync(id);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return Unauthorized();
 
-            if (uUser == null)
-            {
+            var userId = int.Parse(userIdClaim.Value);
+            var user = await _context.UUsers.FindAsync(userId);
+
+            if (user == null)
                 return NotFound();
-            }
 
-            return uUser;
-        }
+            if (!string.IsNullOrEmpty(dto.Name))
+                user.Name = dto.Name;
 
-        // POST: api/UUsers
-        [HttpPost]
-        public async Task<ActionResult<UUser>> PostUUser(UUser uUser)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
+            if (!string.IsNullOrEmpty(dto.Phone))
+                user.Phone = dto.Phone;
 
-            _context.UUsers.Add(uUser);
+            if (!string.IsNullOrEmpty(dto.Sex))
+                user.Sex = dto.Sex;
+
+            if (!string.IsNullOrEmpty(dto.Address))
+                user.Address = dto.Address;
+
+            user.BirthDate = dto.BirthDate ?? user.BirthDate;
+
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetUUser), new { id = uUser.UserId }, uUser);
+            return Ok(new { message = "更新成功" });
         }
-
-        // PUT: api/UUsers/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutUUser(int id, UUser uUser)
+        //修改密碼
+        [Authorize]
+        [HttpPut("change-password")]
+        public async Task<IActionResult> ChangePassword(UChangePasswordDto dto)
         {
-            if (id != uUser.UserId)
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            var user = await _context.UUsers.FindAsync(userId);
+
+            if (user == null)
+                return NotFound("找不到使用者");
+
+            if (user.PasswordSalt == null 
+                || user.PasswordSalt.Length == 0 
+                || user.PasswordSalt.All(b => b == 0))
             {
-                return BadRequest("ID 不符");
+                return BadRequest("帳號尚未完成密碼升級，請重新登入");
+            }
+            using var hmac = new HMACSHA512(user.PasswordSalt);
+
+            var oldHash = Convert.ToBase64String(
+                hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.OldPassword))
+            );
+
+            if (!CryptographicOperations.FixedTimeEquals(
+    Convert.FromBase64String(oldHash),
+    Convert.FromBase64String(user.Password)))
+            {
+                return BadRequest("舊密碼錯誤");
             }
 
-            _context.Entry(uUser).State = EntityState.Modified;
+            using var newHmac = new HMACSHA512();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!UUserExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
+            user.PasswordSalt = newHmac.Key;
+            user.Password = Convert.ToBase64String(
+                newHmac.ComputeHash(Encoding.UTF8.GetBytes(dto.NewPassword))
+            );
 
-            return NoContent();
-        }
-
-        // DELETE: api/UUsers/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUUser(int id)
-        {
-            var uUser = await _context.UUsers.FindAsync(id);
-            if (uUser == null)
-            {
-                return NotFound();
-            }
-
-            _context.UUsers.Remove(uUser);
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            return Ok("密碼修改成功");
+        }
+       
+
+        [Authorize]
+        [HttpPost("upload-avatar")]
+        public async Task<IActionResult> UploadAvatar(IFormFile file)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var user = await _context.UUsers.FindAsync(userId);
+
+            if (user == null) return NotFound();
+
+            if (file == null || file.Length == 0)
+                return BadRequest("未選擇圖片");
+
+            if (file.Length > 800 * 1024)
+                return BadRequest("圖片不能超過 800KB");
+
+            var allowedTypes = new[] { "image/jpeg", "image/png" };
+
+            if (!allowedTypes.Contains(file.ContentType))
+                return BadRequest("只允許 JPG 或 PNG");
+
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+
+            user.Image = ms.ToArray();
+
+            await _context.SaveChangesAsync();
+
+            return Ok("頭像上傳成功");
         }
 
+        //移除頭像
+        [HttpDelete("avatar")]
+        public async Task<IActionResult> RemoveAvatar()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var user = await _context.UUsers.FindAsync(userId);
+
+            if (user == null) return NotFound();
+
+            user.Image = null;
+
+            await _context.SaveChangesAsync();
+
+            return Ok("已移除頭像");
+        }
         private bool UUserExists(int id)
         {
             return _context.UUsers.Any(e => e.UserId == id);
