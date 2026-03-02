@@ -1,4 +1,5 @@
-﻿using gym_api.Models;
+﻿using Google.Apis.Auth;
+using gym_api.Models;
 using gym_api.Models.UDTO;
 using gym_api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -17,9 +18,9 @@ using System.Net.Mail;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-using Google.Apis.Auth;
 namespace gym_api.Controllers.user
 {
     [ApiController]
@@ -225,13 +226,21 @@ namespace gym_api.Controllers.user
 
             var response = await client.PostAsync("https://api.line.me/oauth2/v2.1/token", content);
 
-            if (!response.IsSuccessStatusCode)
-                return Unauthorized("LINE Token 交換失敗");
-
             var json = await response.Content.ReadAsStringAsync();
-            var tokenData = System.Text.Json.JsonDocument.Parse(json);
 
-            var idToken = tokenData.RootElement.GetProperty("id_token").GetString();
+            if (!response.IsSuccessStatusCode)
+            {
+                return BadRequest($"LINE Token 交換失敗: {json}");
+            }
+
+            var tokenData = JsonDocument.Parse(json);
+
+            if (!tokenData.RootElement.TryGetProperty("id_token", out var idTokenElement))
+            {
+                return BadRequest($"沒有取得 id_token: {json}");
+            }
+
+            var idToken = idTokenElement.GetString();
 
             // 解析 id_token
             var handler = new JwtSecurityTokenHandler();
