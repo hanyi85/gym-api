@@ -1,0 +1,36 @@
+﻿@model gym_api.Models.SPayment
+
+@{
+    ViewData["Title"] = "Details";
+}
+
+<h1>Details</h1>
+
+<div>
+    <h4>SPayment</h4>
+    <hr />
+    <dl class="row">
+        <dt class = "col-sm-2">
+            @Html.DisplayNameFor(model => model.Payment)
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.Payment)
+        </dd>
+        <dt class = "col-sm-2">
+            @Html.DisplayNameFor(model => model.HandlingFee)
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.HandlingFee)
+        </dd>
+        <dt class = "col-sm-2">
+            @Html.DisplayNameFor(model => model.Activate)
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.Activate)
+        </dd>
+    </dl>
+</div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model?.PayId">Edit</a> |
+    <a asp-action="Index">Back to List</a>
+</div>

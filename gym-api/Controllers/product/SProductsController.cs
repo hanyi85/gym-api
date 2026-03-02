@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using gym_api.Models;
+using gym_api.DTO;
 
 namespace gym_api.Controllers.product
 {
@@ -22,29 +23,85 @@ namespace gym_api.Controllers.product
 
         // GET: api/SProducts
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<SProduct>>> GetSProducts()
+        public async Task<IEnumerable<SProductDTO>> GetSProducts()
         {
             return await _context.SProducts
-                .Include(s => s.CIdNavigation)
-                .Include(s => s.Sup)
+                .SelectMany(p => p.SSpecifications.Select(s => new SProductDTO
+                {
+                    PId = s.SpecId,
+                    PName = p.PName,
+                    Price = s.Price,
+                    DiscountPrice = s.DiscountPrice,
+                    SpecName = s.SpecName,
+                    ImagePath = p.SImages
+                    .OrderByDescending(img => img.SpecId == s.SpecId)
+                    .ThenByDescending(img => img.MainPicture && img.SpecId == null)
+                    .ThenByDescending(img => img.PicId)
+                    .Select(img => img.Picture)
+                    .FirstOrDefault() ?? "/images/products/default.jpg"
+                }))
                 .ToListAsync();
         }
 
         // GET: api/SProducts/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<SProduct>> GetSProduct(int id)
+        public async Task<IActionResult> GetSProduct(int id)
         {
-            var sProduct = await _context.SProducts
-                .Include(s => s.CIdNavigation)
-                .Include(s => s.Sup)
-                .FirstOrDefaultAsync(m => m.PId == id);
+            var spec = await _context.SSpecifications
+                .Include(s => s.PIdNavigation)
+                    .ThenInclude(p => p.SImages)
+                .Include(s => s.PIdNavigation)
+                    .ThenInclude(p => p.CIdNavigation)
+                .FirstOrDefaultAsync(s => s.SpecId == id);
 
-            if (sProduct == null)
+            if (spec == null) return NotFound();
+
+            var product = spec.PIdNavigation;
+
+            var commentList = await _context.SComments
+                .Include(c => c.Od)
+                .Where(c => c.Od.SpecId == id)
+                .ToListAsync();
+
+            var result = new SProductDTO
             {
-                return NotFound();
-            }
+                PId = spec.SpecId,
+                PName = product.PName,
+                Price = spec.Price,
+                DiscountPrice = spec.DiscountPrice,
+                SpecName = spec.SpecName,
+                CategoryName = product.CIdNavigation?.CName ?? "未分類",
+                Description = product.Description,
 
-            return sProduct;
+                AverageStar = commentList.Any() ? Math.Round(commentList.Average(c => (double)c.CommentStar), 1) : 0,
+                TotalComments = commentList.Count,
+
+                Comments = (from c in commentList
+                            join u in _context.UUsers on c.UserId equals u.UserId // 這裡請換成正確的 DbSet 名稱
+                            select new SCommentDTO
+                            {
+                                ComId = c.ComId,
+                                UserId = c.UserId,
+                                UserName = u.Name, // 這裡現在可以抓到 Users 表的真實姓名了
+                                CommentStar = (int)c.CommentStar,
+                                ProductComment = c.Productcomment,
+                                CommentTime = c.CommentTime.ToString("yyyy-MM-dd HH:mm")
+                            }).ToList(),
+
+                ImageList = product.SImages
+             .OrderByDescending(img => img.SpecId == spec.SpecId) 
+             .ThenByDescending(img => img.MainPicture)          
+             .Select(img => img.Picture)
+             .ToList(),
+
+                ImagePath = product.SImages
+                    .OrderByDescending(img => img.SpecId == spec.SpecId)
+                    .ThenByDescending(img => img.MainPicture)
+                    .Select(img => img.Picture)
+                    .FirstOrDefault() ?? "/images/products/default.jpg"
+            };
+
+            return Ok(result);
         }
 
         // POST: api/SProducts
