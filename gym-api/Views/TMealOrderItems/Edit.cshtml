@@ -1,0 +1,74 @@
+﻿@model gym_api.Models.TMealOrderItem
+
+@{
+    ViewData["Title"] = "Edit";
+}
+
+<h1>Edit</h1>
+
+<h4>TMealOrderItem</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Edit">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <input type="hidden" asp-for="FOrderItemId" />
+            <div class="form-group">
+                <label asp-for="FOrderId" class="control-label"></label>
+                <select asp-for="FOrderId" class="form-control" asp-items="ViewBag.FOrderId"></select>
+                <span asp-validation-for="FOrderId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FMealId" class="control-label"></label>
+                <select asp-for="FMealId" class="form-control" asp-items="ViewBag.FMealId"></select>
+                <span asp-validation-for="FMealId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FQty" class="control-label"></label>
+                <input asp-for="FQty" class="form-control" />
+                <span asp-validation-for="FQty" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FUnitPrice" class="control-label"></label>
+                <input asp-for="FUnitPrice" class="form-control" />
+                <span asp-validation-for="FUnitPrice" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FSubtotal" class="control-label"></label>
+                <input asp-for="FSubtotal" class="form-control" />
+                <span asp-validation-for="FSubtotal" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FPickTimeId" class="control-label"></label>
+                <select asp-for="FPickTimeId" class="form-control" asp-items="ViewBag.FPickTimeId"></select>
+                <span asp-validation-for="FPickTimeId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FPickDate" class="control-label"></label>
+                <input asp-for="FPickDate" class="form-control" />
+                <span asp-validation-for="FPickDate" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FQrContent" class="control-label"></label>
+                <input asp-for="FQrContent" class="form-control" />
+                <span asp-validation-for="FQrContent" class="text-danger"></span>
+            </div>
+            <div class="form-group form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" asp-for="FPickupStatus" /> @Html.DisplayNameFor(model => model.FPickupStatus)
+                </label>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

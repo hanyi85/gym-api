@@ -1,0 +1,83 @@
+﻿@model IEnumerable<gym_api.Models.TMealOrderItem>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.FQty)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FUnitPrice)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FSubtotal)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FPickDate)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FQrContent)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FPickupStatus)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FMeal)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FOrder)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FPickTime)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.FQty)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FUnitPrice)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FSubtotal)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FPickDate)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FQrContent)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FPickupStatus)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FMeal.FMealName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FOrder.FOrderStatus)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FPickTime.FPickUpTimeId)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.FOrderItemId">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.FOrderItemId">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.FOrderItemId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>

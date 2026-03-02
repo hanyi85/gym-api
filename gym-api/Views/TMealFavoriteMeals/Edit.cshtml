@@ -1,0 +1,44 @@
+﻿@model gym_api.Models.TMealFavoriteMeal
+
+@{
+    ViewData["Title"] = "Edit";
+}
+
+<h1>Edit</h1>
+
+<h4>TMealFavoriteMeal</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Edit">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <input type="hidden" asp-for="FFavoriteMealId" />
+            <div class="form-group">
+                <label asp-for="FUserId" class="control-label"></label>
+                <select asp-for="FUserId" class="form-control" asp-items="ViewBag.FUserId"></select>
+                <span asp-validation-for="FUserId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FMealId" class="control-label"></label>
+                <select asp-for="FMealId" class="form-control" asp-items="ViewBag.FMealId"></select>
+                <span asp-validation-for="FMealId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FCreatedAt" class="control-label"></label>
+                <input asp-for="FCreatedAt" class="form-control" />
+                <span asp-validation-for="FCreatedAt" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

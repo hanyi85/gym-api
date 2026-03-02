@@ -1,0 +1,36 @@
+﻿@model gym_api.Models.TMealFavoriteMeal
+
+@{
+    ViewData["Title"] = "Details";
+}
+
+<h1>Details</h1>
+
+<div>
+    <h4>TMealFavoriteMeal</h4>
+    <hr />
+    <dl class="row">
+        <dt class = "col-sm-2">
+            @Html.DisplayNameFor(model => model.FCreatedAt)
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.FCreatedAt)
+        </dd>
+        <dt class = "col-sm-2">
+            @Html.DisplayNameFor(model => model.FMeal)
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.FMeal.FMealName)
+        </dd>
+        <dt class = "col-sm-2">
+            @Html.DisplayNameFor(model => model.FUser)
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.FUser.Account)
+        </dd>
+    </dl>
+</div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model?.FFavoriteMealId">Edit</a> |
+    <a asp-action="Index">Back to List</a>
+</div>
