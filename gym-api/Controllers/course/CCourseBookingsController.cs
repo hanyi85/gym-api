@@ -194,7 +194,7 @@ namespace gym_api.Controllers.course
             if (booking.Status.Contains("已報到"))
                 return BadRequest("已報到不可取消");
 
-            // ✅ 開課前 1 小時內不可取消
+            //  開課前 5 小時內不可取消
             var startTime = await _context.CCourseSchedules
                 .Where(s => s.ScheduleId == booking.ScheduleId && !s.IsDeleted)
                 .Select(s => s.StartTime)
@@ -212,6 +212,57 @@ namespace gym_api.Controllers.course
 
             await _context.SaveChangesAsync();
             return Ok(new { message = "已取消預約" });
+        }
+
+        // GET: /api/coursebookings/{bookingId}/payment-summary?userId=1
+        [HttpGet("{bookingId}/payment-summary")]
+        public async Task<ActionResult<BookingPaymentSummaryDto>> GetPaymentSummary(
+            int bookingId,
+            [FromQuery] int userId
+        )
+        {
+            if (bookingId <= 0) return BadRequest("bookingId 不可為 0");
+            if (userId <= 0) return BadRequest("userId 不可為 0");
+
+            var data = await (
+                from b in _context.CCourseBookings.AsNoTracking()
+                join s in _context.CCourseSchedules.AsNoTracking()
+                    on b.ScheduleId equals s.ScheduleId
+                join c in _context.CCourses.AsNoTracking()
+                    on s.CourseId equals c.CourseId
+                join coach in _context.UCoaches.AsNoTracking()
+                    on s.CoachId equals coach.CoachId
+                where !b.IsDeleted
+                      && b.UserId == userId
+                      && b.CourseBookingId == bookingId
+                      && !s.IsDeleted
+                      && !c.IsDeleted
+                select new BookingPaymentSummaryDto
+                {
+                    BookingId = b.CourseBookingId,
+                    ScheduleId = b.ScheduleId,
+                    CourseId = c.CourseId,
+                    CourseName = c.CourseName,
+
+                    StartTime = s.StartTime,   // 可留可不留
+
+                    //  加在這裡
+                    Date = s.StartTime.ToString("yyyy-MM-dd"),
+                    Time = s.StartTime.ToString("HH:mm"),
+
+                    CoachName = coach.Name,
+
+                    OriginPrice = b.OriginalPrice,
+                    DiscountAmount = b.DiscountAmount,
+                    FinalPrice = b.FinalPrice,
+
+                    PaymentStatus = b.PaymentStatus
+                }
+            ).FirstOrDefaultAsync();
+
+            if (data == null) return NotFound("找不到此訂單或無權限");
+
+            return Ok(data);
         }
     }
 }
