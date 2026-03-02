@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace gym_api.Controllers.product
@@ -16,10 +17,12 @@ namespace gym_api.Controllers.product
     public class SOrderController : ControllerBase
     {
         private readonly dbFitness2Context _context;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public SOrderController(dbFitness2Context context)
+        public SOrderController(dbFitness2Context context, IHttpClientFactory httpClientFactory)
         {
             _context = context;
+            _httpClientFactory = httpClientFactory;
         }
 
         // GET: api/SOrders
@@ -68,6 +71,7 @@ namespace gym_api.Controllers.product
             {
                 try
                 {
+                    // 1. 建立訂單主檔 (SOrder)
                     var order = new SOrder
                     {
                         UserId = 1,
@@ -80,31 +84,26 @@ namespace gym_api.Controllers.product
                         ShipFee = dto.shipFee,
                         Total = dto.total,
                         Note = dto.note ?? "",
-
-                        // ⚡ 關鍵：只設 FK，不設 navigation property
                         PayId = dto.payId,
                         ShipId = dto.shipId,
                         Pay = null,
                         Ship = null,
-
                         PayStatus = "待付款",
                         OrderNumber = randomOrderNumber
                     };
 
-                    // 🔹 明確告訴 EF 這兩個 navigation 不要追蹤
                     _context.Entry(order).Reference(o => o.Pay).IsModified = false;
                     _context.Entry(order).Reference(o => o.Ship).IsModified = false;
 
                     _context.SOrders.Add(order);
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(); // 先儲存以取得自動編號的 OId
 
+                    // 2. 建立訂單明細 (SOrderDetail)
                     foreach (var item in dto.items)
                     {
                         var specExists = await _context.SSpecifications.AnyAsync(s => s.SpecId == item.specId);
-                        if (!specExists)
-                        {
-                            throw new Exception($"找不到 ID 為 {item.specId} 的商品規格，請重新整理購物車。");
-                        }
+                        if (!specExists) throw new Exception($"找不到 ID 為 {item.specId} 的商品規格");
+
                         var detail = new SOrderDetail
                         {
                             OId = order.OId,
@@ -117,18 +116,141 @@ namespace gym_api.Controllers.product
                         _context.SOrderDetails.Add(detail);
                     }
 
+                    // 在呼叫 PayPal 前，確保所有明細已寫入資料庫
                     await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
 
+                    // ==========================================
+                    // ⚡ 這裡就是加入 PayPal 邏輯的地方 ⚡
+                    // ==========================================
+
+                    if (dto.payId == 3)
+                    {
+                        // 呼叫向 PayPal 請求訂單 ID 的方法 (稍後定義在下方)
+                        string paypalOrderId = await CreatePayPalOrder(order.Total, order.OrderNumber);
+
+                        // 如果成功取得 PayPal ID，就提交事務並回傳給前端
+                        await transaction.CommitAsync();
+
+                        return Ok(new
+                        {
+                            success = true,
+                            orderNo = randomOrderNumber,
+                            approvalUrl = paypalOrderId // 傳給 Vue 觸發付款視窗
+                        });
+                    }
+
+                    // ==========================================
+
+                    // 如果不是 PayPal (例如貨到付款)，直接提交
+                    await transaction.CommitAsync();
                     return Ok(new { success = true, orderNo = randomOrderNumber });
                 }
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
-                    var innerMessage = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                    return StatusCode(500, "資料庫寫入失敗：" + innerMessage);
+                    return StatusCode(500, "交易失敗：" + ex.Message);
                 }
             }
+        }
+
+        private async Task<string> CreatePayPalOrder(decimal total, string orderNumber)
+        {
+            var client = _httpClientFactory.CreateClient();
+            string clientId = "AVYXZxqBbHTn6VzJhCNHheqsQ_k8Aux3-jS1a9tVE2Ibp_BgS2smxr-Q58YqkJ8O0BW9HQprCqhyxoDH";
+            string secret = "EG8a66plWflCBImJ5LdiX1YeoBt2ioHwsPzq1eWILbiE_WpC0_gie9F0giesPXtmEbrMjkXfrKVgrnxs";
+            var auth = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId}:{secret}"));
+
+            var requestBody = new
+            {
+                intent = "CAPTURE",
+                purchase_units = new[] {
+            new {
+                reference_id = orderNumber,
+                amount = new { currency_code = "TWD", value = Math.Round(total).ToString() }
+            }
+        },
+                // ⚡ 這裡非常重要：設定支付完要跳回哪裡
+                application_context = new
+                {
+                    return_url = "http://localhost:5173/shop/payment-callback", // 支付成功跳轉頁
+                    cancel_url = "http://localhost:5173/shop/Shop-Booking"         // 取消支付跳回頁
+                }
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://api-m.sandbox.paypal.com/v2/checkout/orders");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", auth);
+            request.Content = JsonContent.Create(requestBody);
+
+            var response = await client.SendAsync(request);
+            var jsonDoc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            var root = jsonDoc.RootElement;
+
+            // ⚡ 遍歷 JSON 尋找跳轉網址
+            string approvalUrl = "";
+            if (root.TryGetProperty("links", out var links))
+            {
+                foreach (var link in links.EnumerateArray())
+                {
+                    if (link.GetProperty("rel").GetString() == "approve")
+                    {
+                        approvalUrl = link.GetProperty("href").GetString();
+                        break;
+                    }
+                }
+            }
+            if (string.IsNullOrEmpty(approvalUrl))
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new Exception($"PayPal 沒回傳跳轉網址。錯誤原因：{errorBody}");
+            }
+            return approvalUrl; // 改為回傳完整網址
+        }
+
+        [HttpPost("{payPalOrderId}")]
+        public async Task<IActionResult> CaptureOrder(string payPalOrderId)
+        {
+            var client = _httpClientFactory.CreateClient();
+
+            // 1. 同樣需要驗證 (建議將這段抽出成私有方法)
+            string clientId = "AVYXZxqBbHTn6VzJhCNHheqsQ_k8Aux3-jS1a9tVE2Ibp_BgS2smxr-Q58YqkJ8O0BW9HQprCqhyxoDH";
+            string secret = "EG8a66plWflCBImJ5LdiX1YeoBt2ioHwsPzq1eWILbiE_WpC0_gie9F0giesPXtmEbrMjkXfrKVgrnxs";
+            var auth = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId}:{secret}"));
+
+            var request = new HttpRequestMessage(HttpMethod.Post, $"https://api-m.sandbox.paypal.com/v2/checkout/orders/{payPalOrderId}/capture");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", auth);
+            request.Content = new StringContent("", System.Text.Encoding.UTF8, "application/json");
+
+            var response = await client.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // 【方法 A：解析 PayPal 回傳的 JSON】
+                var jsonResponse = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+
+                // 從 purchase_units[0].reference_id 抓取你當初傳給 PayPal 的訂單編號
+                string orderNo = jsonResponse.GetProperty("purchase_units")[0]
+                                     .GetProperty("reference_id")
+                                     .GetString();
+
+                // 修正 3：使用 FirstOrDefaultAsync 尋找訂單 (請確認有 using Microsoft.EntityFrameworkCore;)
+                var order = await _context.SOrders.FirstOrDefaultAsync(o => o.OrderNumber == orderNo);
+
+                if (order != null)
+                {
+                    order.PayStatus = "已付款";
+                    await _context.SaveChangesAsync();
+
+                    // 回傳成功狀態與訂單編號給前端，讓前端可以跳轉並顯示單號
+                    return Ok(new { status = "COMPLETED", orderNo = orderNo });
+                }
+
+                return NotFound("找不到對應的資料庫訂單");
+            }
+
+            // 若 PayPal 回傳失敗，抓取錯誤訊息
+            var errorMsg = await response.Content.ReadAsStringAsync();
+
+            return BadRequest("付款請款失敗");
         }
 
         // PUT: api/SOrders/5
