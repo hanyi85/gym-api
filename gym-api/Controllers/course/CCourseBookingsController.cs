@@ -22,6 +22,36 @@ namespace gym_api.Controllers.course
         [HttpGet("history")]
         public async Task<ActionResult<List<BookingHistoryItemDto>>> GetHistory([FromQuery] int userId)
         {
+            var now = DateTime.Now;
+
+            // ✅ 0) 自動取消：已過開課時間且仍「待付款」的訂單
+            // ⚠️ 這段不能 AsNoTracking，因為要更新 DB
+            var expired = await (
+                from b in _context.CCourseBookings
+                join s in _context.CCourseSchedules
+                    on b.ScheduleId equals s.ScheduleId
+                where !b.IsDeleted
+                   && b.UserId == userId
+                   && b.PaymentStatus == "待付款"
+                   && !s.IsDeleted
+                   && s.StartTime <= now
+                select b
+            ).ToListAsync();
+
+            if (expired.Count > 0)
+            {
+                foreach (var b in expired)
+                {
+                    b.IsDeleted = true;              // ✅ 讓這筆不再算有效訂單
+                    b.Status = "Canceled";           // 你前端 uiStatus 有抓 includes('取消') / Canceled
+                    b.PaymentStatus = "已取消";      // ✅ 建議一起改，前端 badge 會更直覺
+                    b.UpdatedAt = now;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+
+            // ✅ 1) 再查 history（這段用 AsNoTracking 讀取即可）
             var data = await (
                 from b in _context.CCourseBookings.AsNoTracking()
                 join s in _context.CCourseSchedules.AsNoTracking()
@@ -30,7 +60,8 @@ namespace gym_api.Controllers.course
                     on s.CourseId equals c.CourseId
                 join coach in _context.UCoaches.AsNoTracking()
                     on s.CoachId equals coach.CoachId
-                where !b.IsDeleted && b.UserId == userId
+                where !b.IsDeleted
+                   && b.UserId == userId
                    && !s.IsDeleted
                    && !c.IsDeleted
                 orderby b.CreatedAt descending
@@ -48,7 +79,6 @@ namespace gym_api.Controllers.course
                     CourseName = c.CourseName,
                     CoachName = coach.Name,
 
-                    // 是否已評論
                     IsReviewed = _context.CReviews.Any(r =>
                         !r.IsDeleted && r.CourseBookingId == b.CourseBookingId
                     )
