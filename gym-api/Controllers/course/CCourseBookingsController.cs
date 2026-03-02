@@ -264,5 +264,32 @@ namespace gym_api.Controllers.course
 
             return Ok(data);
         }
+        // GET: /api/coursebookings/{bookingId}/review-summary?userId=1
+        [HttpGet("{bookingId}/review-summary")]
+        public async Task<IActionResult> GetReviewSummary(int bookingId, [FromQuery] int userId)
+        {
+            var data = await (
+                from b in _context.CCourseBookings.AsNoTracking()
+                join s in _context.CCourseSchedules.AsNoTracking()
+                    on b.ScheduleId equals s.ScheduleId
+                join c in _context.CCourses.AsNoTracking()
+                    on s.CourseId equals c.CourseId
+                join coach in _context.UCoaches.AsNoTracking()
+                    on s.CoachId equals coach.CoachId
+                where !b.IsDeleted && b.UserId == userId && b.CourseBookingId == bookingId
+                      && !s.IsDeleted && !c.IsDeleted
+                select new
+                {
+                    courseBookingId = b.CourseBookingId,
+                    orderId = "BK" + b.CourseBookingId.ToString().PadLeft(9, '0'),
+                    course = c.CourseName,
+                    coach = coach.Name,
+                    startTime = s.StartTime
+                }
+            ).FirstOrDefaultAsync();
+
+            if (data == null) return NotFound("找不到訂單或無權限");
+            return Ok(data);
+        }
     }
 }
