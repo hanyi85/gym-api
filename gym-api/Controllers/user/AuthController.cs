@@ -527,7 +527,7 @@ namespace gym_api.Controllers.user
             var verifyLink = $"http://localhost:5173/users/verify-email?token={encodedToken}";
 
             // 寄信
-            await _emailService.SendVerifyEmail(dto.Email, verifyLink);
+            _ = Task.Run(() => _emailService.SendVerifyEmail(dto.Email, verifyLink));
 
             // 暫時改成回傳連結（測試用）
             return Ok(new
