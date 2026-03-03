@@ -16,6 +16,7 @@ namespace gym_api.Controllers.post
     // 統一接收前端傳來的報名資訊
     public class LinePayRequestDto
     {
+        public int PostId { get; set; }
         public int EventId { get; set; }
         public int? UserId { get; set; }
         public string Name { get; set; }
@@ -24,6 +25,7 @@ namespace gym_api.Controllers.post
         public string Phone { get; set; }
         public decimal Fee { get; set; }
         public string PaymentMethod { get; set; }
+        public string CaptchaToken { get; set; }
     }
 
     [Route("api/[controller]")]
@@ -154,7 +156,12 @@ namespace gym_api.Controllers.post
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "確認流程發生錯誤", error = ex.Message });
+                return StatusCode(500, new
+                {
+                    message = "確認流程發生錯誤",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
             }
         }
 
@@ -162,7 +169,7 @@ namespace gym_api.Controllers.post
         private async Task SendSuccessEmailAsync(YJoinForm join)
         {
             // 提取活動詳細資訊，若無資料則顯示 "未提供"
-            var eventTitle = join.Event?.Post?.Title ?? "健身活動";
+            var eventTitle = join.Event?.Post?.Title ?? "活動";
             var eventVenue = join.Event?.Venue ?? "活動現場";
             var eventDate = join.Event?.StartDate.ToString("yyyy/MM/dd HH:mm") ?? "另行通知";
 
