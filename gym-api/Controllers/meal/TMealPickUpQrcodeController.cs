@@ -48,13 +48,14 @@ namespace gym_api.Controllers.meal
                 PickTime = $"{item.FPickTime.FStartTime} ~ {item.FPickTime.FEndTime}",
                 UserName = item.FOrder.FUser.Name,
                 Phone = item.FOrder.FUser.Phone,
+                PayMethod=item.FOrder.FPayMethod,
                 item.FPickupStatus
             });
         }
 
         // GET: apiTMealPickUpQrcode/pickup/{orderItemId}
         //  確認取餐
-        [HttpPost("pickup/{orderItemId}")]
+        [HttpPost("Pickup/{orderItemId}")]
         public IActionResult Pickup(int orderItemId)
         {
             var item = _context.TMealOrderItems
