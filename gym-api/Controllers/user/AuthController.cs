@@ -234,8 +234,25 @@ namespace gym_api.Controllers.user
 
             var idToken = idTokenElement.GetString();
 
-            var handler = new JwtSecurityTokenHandler();
-            var jwtToken = handler.ReadJwtToken(idToken);
+            if (string.IsNullOrEmpty(idToken))
+            {
+                return BadRequest("LINE id_token 為空");
+            }
+
+            JwtSecurityToken jwtToken;
+
+            try
+            {
+            // 解析 id_token
+                var handler = new JwtSecurityTokenHandler();
+                jwtToken = handler.ReadJwtToken(idToken);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("LINE id_token 解析失敗: " + ex.Message);
+            }
+
+            
 
             var email = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
             var lineUserId = jwtToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
@@ -280,16 +297,11 @@ namespace gym_api.Controllers.user
             // 3️ 有 Email → 用 Email 查
             user = await _context.UUsers
                 .FirstOrDefaultAsync(u => u.Email == email);
+     .FirstOrDefaultAsync(u => u.LineId == lineUserId);
 
-            if (user != null)
-            {
-                user.LineId = lineUserId;
-                user.IsEmailVerified = true;
-                user.EmailVerifiedAt = DateTime.UtcNow;
 
-                await _context.SaveChangesAsync();
-            }
-            else
+
+            if (user == null)
             {
                 user = new UUser
                 {
@@ -300,12 +312,12 @@ namespace gym_api.Controllers.user
                     IsEmailVerified = true,
                     EmailVerifiedAt = DateTime.UtcNow,
                     CreatedDate = DateTime.UtcNow,
+                    Status = 1,
 
                     Address = "",
                     Phone = "",
                     Sex = "",
-                    BirthDate = DateOnly.FromDateTime(DateTime.Today),
-                    Status = 1
+                    BirthDate = DateOnly.FromDateTime(DateTime.Today)
                 };
 
                 _context.UUsers.Add(user);
