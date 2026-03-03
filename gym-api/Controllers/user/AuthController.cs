@@ -651,7 +651,14 @@ namespace gym_api.Controllers.user
                 return Ok(new { success = true });
 
             if (user.IsEmailVerified)
-                return BadRequest(new { message = "帳號已完成驗證" });
+            {
+                return Ok(new
+                {
+                    success = true,
+                    alreadyVerified = true,
+                    message = "帳號已完成驗證"
+                });
+            }
 
             var verifyToken = GenerateEmailVerifyToken(user);
             var encodedToken = WebUtility.UrlEncode(verifyToken);
