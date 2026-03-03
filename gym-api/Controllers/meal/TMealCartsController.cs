@@ -171,6 +171,11 @@ namespace gym_api.Controllers.meal
             order.FVenueId = dto.VenueId;
             order.FPayMethod = dto.PayMethod;
             order.FTotalAmount = order.TMealOrderItems.Sum(i => i.FSubtotal);
+            //  在這裡產生 QRCode
+            foreach (var item in order.TMealOrderItems)
+            {
+                item.FQrContent = Guid.NewGuid().ToString("N");
+            }
 
             await _context.SaveChangesAsync();
 
