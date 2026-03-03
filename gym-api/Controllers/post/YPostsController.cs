@@ -132,7 +132,15 @@ namespace gym_api.Controllers.post
                         Detail = p.Detail,
                         TagName = p.PostCategory != null ? p.PostCategory.Name : "其他",
                         IsPinned = p.IsPinned,
-                        Date = p.CreatedAt.ToString("yyyy/MM/dd")
+                        Date = p.CreatedAt.ToString("yyyy/MM/dd"),
+                        // --- 修改這裡：利用 ImageRelationId 去串連圖片 ---
+                        ImageUrls = _context.YImageRelations
+                            .Where(ir => ir.ImageRelationId == p.ImageRelationId) // 依照你的欄位串接
+                            .Join(_context.YImages,
+                                  ir => ir.ImageId,
+                                  img => img.ImageId,
+                                  (ir, img) => img.ImageUrl)
+                            .ToList()
                     })
                     .ToListAsync();
 
@@ -143,7 +151,6 @@ namespace gym_api.Controllers.post
                 return StatusCode(500, $"抓取失敗: {ex.Message}");
             }
         }
-
         // GET: api/YPosts/5
         [HttpGet("{id}")]
         public async Task<ActionResult> GetYPost(int id)
@@ -156,6 +163,7 @@ namespace gym_api.Controllers.post
 
             if (yPost == null) return NotFound(new { message = "找不到貼文" });
 
+            // 瀏覽量邏輯
             try
             {
                 yPost.ViewCount = (yPost.ViewCount) + 1;
@@ -164,6 +172,15 @@ namespace gym_api.Controllers.post
             }
             catch (Exception) { }
 
+            // --- 修改這裡：單篇貼文取多圖 ---
+            var imageUrls = await _context.YImageRelations
+                .Where(ir => ir.ImageRelationId == yPost.ImageRelationId)
+                .Join(_context.YImages,
+                      ir => ir.ImageId,
+                      img => img.ImageId,
+                      (ir, img) => img.ImageUrl)
+                .ToListAsync();
+
             var evt = yPost.YPostEvents.FirstOrDefault();
 
             return Ok(new
@@ -171,7 +188,7 @@ namespace gym_api.Controllers.post
                 Id = yPost.PostId,
                 Title = yPost.Title,
                 Detail = yPost.Detail,
-                ImageUrl = yPost.ImageRelationId,
+                ImageUrls = imageUrls, // 回傳字串陣列
                 CreatedAt = yPost.CreatedAt,
                 ViewCount = yPost.ViewCount,
                 CoachName = yPost.Coach?.Name,
@@ -179,18 +196,17 @@ namespace gym_api.Controllers.post
                 PostCategoryId = yPost.PostCategoryId,
                 EventInfo = evt != null ? new
                 {
-                    EventId = evt.EventId,
-                    Fee = evt.Fee,
-                    Venue = evt.Venue,
-                    StartDate = evt.StartDate,
-                    EndDate = evt.EndDate,
+                    evt.EventId,
+                    evt.Fee,
+                    evt.Venue,
+                    evt.StartDate,
+                    evt.EndDate,
                     RegistrationDeadline = evt.Registrationdeadline,
                     EventDetail = evt.Detail,
-                    Status = evt.Status
+                    evt.Status
                 } : null
             });
         }
-
         // POST: api/YPosts
         [HttpPost]
         public async Task<ActionResult<YPost>> PostYPost(YPost yPost)

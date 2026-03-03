@@ -63,6 +63,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 app.UseCors("AllowVue");
 
@@ -70,6 +71,5 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.UseStaticFiles();
 
 app.Run();
