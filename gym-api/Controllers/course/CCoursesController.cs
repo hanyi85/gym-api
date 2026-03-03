@@ -119,61 +119,86 @@ namespace gym_api.Controllers.course
         [HttpGet("search")]
         public async Task<IActionResult> SearchCourses(
       [FromQuery] string city,
-      [FromQuery] string venue)
+      [FromQuery] string venue,
+      [FromQuery] string? keyword,
+      [FromQuery] int? categoryId,
+      [FromQuery] int? duration,
+      [FromQuery] string? level,
+      [FromQuery] int? maxPrice,
+      [FromQuery] int page = 1,
+      [FromQuery] int pageSize = 6
+  )
         {
-            //  city
+            page = page < 1 ? 1 : page;
+            pageSize = (pageSize < 1 || pageSize > 50) ? 6 : pageSize;
+
             var cityEntity = await _context.CCities
+                .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CityName == city);
 
             if (cityEntity == null)
                 return NotFound("City not found");
 
-            // 2venue
             var venueEntity = await _context.CVenues
-                .FirstOrDefaultAsync(v =>
-                    v.CityId == cityEntity.CityId &&
-                    v.VenueName == venue
-                );
+                .AsNoTracking()
+                .FirstOrDefaultAsync(v => v.CityId == cityEntity.CityId && v.VenueName == venue);
 
             if (venueEntity == null)
                 return NotFound("Venue not found");
 
+            var q = _context.CCourses
+                .AsNoTracking()
+                .Where(c => c.VenueId == venueEntity.VenueId && !c.IsDeleted);
 
-            var courses = await _context.CCourses
-                .Where(c =>
-                    c.VenueId == venueEntity.VenueId &&
-                    !c.IsDeleted
-                )
+            keyword = (keyword ?? "").Trim();
+            if (!string.IsNullOrWhiteSpace(keyword))
+                q = q.Where(c => c.CourseName.Contains(keyword));
+
+            if (categoryId.HasValue && categoryId.Value > 0)
+                q = q.Where(c => c.CategoryId == categoryId.Value);
+
+            level = (level ?? "").Trim();
+            if (!string.IsNullOrWhiteSpace(level))
+                q = q.Where(c => c.Courselevel == level);
+
+            // ✅ 你原本缺的：duration filter
+            if (duration.HasValue && duration.Value > 0)
+                q = q.Where(c => c.Duration == duration.Value);
+
+            if (maxPrice.HasValue && maxPrice.Value > 0)
+                q = q.Where(c => c.Price <= maxPrice.Value);
+
+            var totalCount = await q.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var courses = await q
+                .OrderBy(c => c.CourseId)
                 .Select(c => new
                 {
                     id = c.CourseId,
                     name = c.CourseName,
                     courseLevel = c.Courselevel,
                     price = c.Price,
-                
                     duration = c.Duration,
                     imageUrl = c.FImageUrl,
                     categoryId = c.CategoryId,
                     categoryName = c.Category.CategoryName
                 })
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             return Ok(new
             {
-                city = new
-                {
-                    id = cityEntity.CityId,
-                    name = cityEntity.CityName
-                },
-                venue = new
-                {
-                    id = venueEntity.VenueId,
-                    name = venueEntity.VenueName
-                },
+                city = new { id = cityEntity.CityId, name = cityEntity.CityName },
+                venue = new { id = venueEntity.VenueId, name = venueEntity.VenueName },
+                filters = new { keyword, categoryId, duration, level, maxPrice }, // ✅ 加 duration
+                pagination = new { page, pageSize, totalCount, totalPages },
                 courses
             });
         }
-
         [HttpGet("by-name/{name}")]
         public async Task<IActionResult> GetByName(string name)
         {

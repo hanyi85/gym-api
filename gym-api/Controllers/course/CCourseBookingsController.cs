@@ -195,22 +195,34 @@ namespace gym_api.Controllers.course
         [HttpPost("checkin/{bookingId}")]
         public async Task<IActionResult> CheckIn(int bookingId)
         {
+            var now = DateTime.Now;
+
             var booking = await _context.CCourseBookings
                 .FirstOrDefaultAsync(b => b.CourseBookingId == bookingId && !b.IsDeleted);
 
             if (booking == null) return NotFound("找不到預約");
 
-            if (booking.Status == "已報到")
+            // 已取消/刪除不可報到
+            var status = (booking.Status ?? "").ToString();
+            if (status.Contains("取消") || status.Equals("Canceled", StringComparison.OrdinalIgnoreCase))
+                return BadRequest("已取消不可報到");
+
+            // 未付款不可報到（核心）
+            var pay = (booking.PaymentStatus ?? "").ToString();
+            if (!pay.Contains("已付款"))
+                return BadRequest("未付款不可報到");
+
+            //  已報到不可重複
+            if (status.Contains("已報到"))
                 return BadRequest("已報到過");
 
             booking.Status = "已報到";
-            booking.UpdatedAt = DateTime.Now;
+            booking.UpdatedAt = now;
 
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "報到成功", bookingId });
         }
-
         // DELETE: /api/CourseBookings/123
         [HttpDelete("{id}")]
         public async Task<IActionResult> Cancel(int id)
