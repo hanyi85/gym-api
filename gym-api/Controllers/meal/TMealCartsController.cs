@@ -170,6 +170,7 @@ namespace gym_api.Controllers.meal
             order.FOrderEmail = dto.Email;
             order.FVenueId = dto.VenueId;
             order.FPayMethod = dto.PayMethod;
+            order.FOrderAt = DateTime.Now;
             order.FTotalAmount = order.TMealOrderItems.Sum(i => i.FSubtotal);
             //  在這裡產生 QRCode
             foreach (var item in order.TMealOrderItems)
@@ -195,7 +196,6 @@ namespace gym_api.Controllers.meal
             if (order == null)
                 return BadRequest("沒有購物車");  
             order.FOrderStatus = "待付款";
-            order.FOrderAt = DateTime.Now;
             await _context.SaveChangesAsync();
 
             return Ok(order.FOrderId);
