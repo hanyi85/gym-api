@@ -5,6 +5,7 @@ using gym_api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages.Manage;
@@ -45,6 +46,13 @@ namespace gym_api.Controllers.user
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] ULoginDto dto)
         {
+            if (string.IsNullOrWhiteSpace(dto.Email) ||
+    string.IsNullOrWhiteSpace(dto.Password))
+            {
+                return BadRequest("請輸入帳號密碼");
+            }
+
+            var email = dto.Email.ToLower();
             var user = await _context.UUsers
     .FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower());
 
@@ -100,7 +108,10 @@ namespace gym_api.Controllers.user
                     message = "請先完成電子郵件驗證"
                 });
             }
-
+            if (user.Password == null)
+            {
+                return BadRequest("此帳號請使用 LINE 登入，或先設定密碼");
+            }
             var token = _jwtService.GenerateAccessToken(user);
 
             return Ok(new
@@ -108,7 +119,8 @@ namespace gym_api.Controllers.user
                 token,
                 userId = user.UserId,
                 name = user.Name,
-                isEmailVerified = user.IsEmailVerified
+                isEmailVerified = user.IsEmailVerified,
+                showWelcomeMessage = false
             });
         }
         //忘記密碼
@@ -178,6 +190,7 @@ namespace gym_api.Controllers.user
                     Name = payload.Name,
                     Email = userEmail,
                     GoogleId = googleId,
+                    Account = userEmail,
 
                     IsEmailVerified = true,
                     EmailVerifiedAt = DateTime.UtcNow,
@@ -202,9 +215,11 @@ namespace gym_api.Controllers.user
                 userId = user.UserId,
                 name = user.Name,
                 isEmailVerified = true,
-                provider = "Google"
+                provider = "Google",
+                showWelcomeMessage = true
             });
         }
+        
         //line登入
         [HttpPost("line-login")]
         public async Task<IActionResult> LineLogin([FromBody] ULineLoginDto dto)
@@ -267,6 +282,11 @@ namespace gym_api.Controllers.user
 
             if (user != null)
             {
+                if (user.LineId == null)
+                {
+                    user.LineId = lineUserId;
+                    await _context.SaveChangesAsync();
+                }
                 var token = _jwtService.GenerateAccessToken(user);
                 return Ok(new
                 {
@@ -280,6 +300,27 @@ namespace gym_api.Controllers.user
             // 2️ 如果沒有 Email → 要求補填
             if (string.IsNullOrEmpty(email))
             {
+                email = $"line_{lineUserId}@temp.local";
+
+                user = new UUser
+                {
+                    Account = $"line_{lineUserId}",
+                    Name = name ?? "",
+                    Email = email,
+                    LineId = lineUserId,
+                    IsEmailVerified = false,
+                    CreatedDate = DateTime.UtcNow,
+                    Status = 1,
+
+                    Address = "",
+                    Phone = "",
+                    Sex = "",
+                    BirthDate = DateOnly.FromDateTime(DateTime.Today)
+                };
+
+                _context.UUsers.Add(user);
+                await _context.SaveChangesAsync();
+
                 return Ok(new
                 {
                     needEmail = true,
@@ -296,8 +337,7 @@ namespace gym_api.Controllers.user
 
             // 3️ 有 Email → 用 Email 查
             user = await _context.UUsers
-                .FirstOrDefaultAsync(u => u.Email == email);
-     .FirstOrDefaultAsync(u => u.LineId == lineUserId);
+    .FirstOrDefaultAsync(u => u.Email == email);
 
 
 
@@ -305,6 +345,7 @@ namespace gym_api.Controllers.user
             {
                 user = new UUser
                 {
+                    Account = $"line_{lineUserId}",
                     Name = name ?? "",
                     Email = email,
                     LineId = lineUserId,
@@ -335,16 +376,53 @@ namespace gym_api.Controllers.user
             });
         }
 
-        private bool IsProfileCompleted(UUser user)
+        //完成line會員註冊
+        [HttpPost("complete-line-register")]
+        public async Task<IActionResult> CompleteLineRegister(
+     [FromBody] UCompleteLineRegisterRequest request)
         {
-            return
-                !string.IsNullOrWhiteSpace(user.Phone) &&
-                !string.IsNullOrWhiteSpace(user.Address) &&
-                user.BirthDate != null;
+            if (string.IsNullOrEmpty(request.LineUserId) ||
+                string.IsNullOrEmpty(request.Email))
+            {
+                return BadRequest("資料不完整");
+            }
+
+            var email = request.Email.ToLower();
+
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(x => x.LineId == request.LineUserId);
+
+            if (user == null)
+                return BadRequest("找不到 LINE 使用者");
+
+            // 已完成註冊
+            if (!user.Email.EndsWith("@temp.local"))
+                return BadRequest("此 LINE 帳號已完成註冊");
+
+            var emailExist = await _context.UUsers
+                .AnyAsync(x => x.Email == email);
+
+            if (emailExist)
+                return BadRequest("Email 已被使用");
+
+            user.Email = email;
+            user.IsEmailVerified = true;
+            user.EmailVerifiedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var token = _jwtService.GenerateAccessToken(user);
+
+            return Ok(new
+            {
+                message = "註冊成功",
+                token,
+                userId = user.UserId,
+                name = user.Name,
+                provider = "LINE"
+            });
         }
-
         //重設密碼 API
-
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(UResetPasswordDto dto)
         {
@@ -415,6 +493,7 @@ namespace gym_api.Controllers.user
             var user = new UUser
             {
                 // 帳號資料
+                Account = dto.Email.ToLower(),
                 Email = dto.Email.ToLower(),
 
                 // 密碼
