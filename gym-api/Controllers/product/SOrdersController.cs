@@ -1,5 +1,6 @@
 ﻿using gym_api.DTO;
 using gym_api.Models;
+using gym_api.Services;
 using Microsoft.AspNetCore.Http; // 用於生產狀態碼標籤
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,15 +15,19 @@ namespace gym_api.Controllers.product
     [Route("api/[controller]")]
     [ApiController]
     [Tags("訂單管理")]
+
     public class SOrderController : ControllerBase
     {
         private readonly dbFitness2Context _context;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly EmailService _emailService;
 
-        public SOrderController(dbFitness2Context context, IHttpClientFactory httpClientFactory)
+
+        public SOrderController(dbFitness2Context context, IHttpClientFactory httpClientFactory, EmailService emailService)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
+            _emailService = emailService;
         }
 
         // GET: api/SOrders
@@ -143,6 +148,15 @@ namespace gym_api.Controllers.product
 
                     // 如果不是 PayPal (例如貨到付款)，直接提交
                     await transaction.CommitAsync();
+                    try
+                    {
+                        await _emailService.SendOrderConfirmationEmail(order.Email, order.OrderNumber, order.Total, "貨到付款");
+                    }
+                    catch (Exception ex)
+                    {
+                        // 僅記錄 Log，不影響回傳給前端的成功結果
+                        Console.WriteLine($"寄信失敗: {ex.Message}");
+                    }
                     return Ok(new { success = true, orderNo = randomOrderNumber });
                 }
                 catch (Exception ex)
@@ -211,6 +225,7 @@ namespace gym_api.Controllers.product
         {
             var client = _httpClientFactory.CreateClient();
 
+
             // 1. 同樣需要驗證 (建議將這段抽出成私有方法)
             string clientId = "AVYXZxqBbHTn6VzJhCNHheqsQ_k8Aux3-jS1a9tVE2Ibp_BgS2smxr-Q58YqkJ8O0BW9HQprCqhyxoDH";
             string secret = "EG8a66plWflCBImJ5LdiX1YeoBt2ioHwsPzq1eWILbiE_WpC0_gie9F0giesPXtmEbrMjkXfrKVgrnxs";
@@ -227,6 +242,7 @@ namespace gym_api.Controllers.product
                 // 【方法 A：解析 PayPal 回傳的 JSON】
                 var jsonResponse = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
 
+
                 // 從 purchase_units[0].reference_id 抓取你當初傳給 PayPal 的訂單編號
                 string orderNo = jsonResponse.GetProperty("purchase_units")[0]
                                      .GetProperty("reference_id")
@@ -239,6 +255,14 @@ namespace gym_api.Controllers.product
                 {
                     order.PayStatus = "已付款";
                     await _context.SaveChangesAsync();
+                    try
+                    {
+                        await _emailService.SendOrderConfirmationEmail(order.Email, order.OrderNumber, order.Total, "PayPal 已付款");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"寄信失敗: {ex.Message}");
+                    }
 
                     // 回傳成功狀態與訂單編號給前端，讓前端可以跳轉並顯示單號
                     return Ok(new { status = "COMPLETED", orderNo = orderNo });
@@ -252,6 +276,8 @@ namespace gym_api.Controllers.product
 
             return BadRequest("付款請款失敗");
         }
+
+
 
         // PUT: api/SOrders/5
         [HttpPut("{id}")]

@@ -153,7 +153,63 @@ namespace gym_api.Services
             await smtpClient.SendMailAsync(mailMessage);
         }
 
-   
-           
+
+        public async Task SendOrderConfirmationEmail(string toEmail, string orderId, decimal totalAmount, string paymentMethod)
+        {
+            var subject = $"【練吧 Fitness Bar】訂單確認通知 - #{orderId}";
+
+            // 對接 Vue 路由: /shop/orders/:id
+            string detailLink = $"http://localhost:5173/shop/orders/{orderId}";
+
+            var body = $@"
+<div style='font-family: Arial, sans-serif; line-height:1.6; color:#333;'>
+
+    <h2 style='color:#f38d00;'>感謝您的訂購！</h2>
+
+    <p>親愛的會員您好：</p>
+
+    <p>
+    我們已收到您的訂單 <strong>#{orderId}</strong>。
+    團隊正在為您準備後續作業，您可以點擊下方按鈕查看詳細訂單內容：
+    </p>
+
+    <div style='background-color:#f9f9f9; padding:20px; border-radius:6px; margin:25px 0;'>
+        <p style='margin:5px 0;'><strong>付款方式：</strong> {paymentMethod}</p>
+        <p style='margin:5px 0;'><strong>應付總額：</strong> <span style='color:#e74c3c; font-size:18px; font-weight:bold;'>NT$ {totalAmount:N0}</span></p>
+    </div>
+
+    <p style='margin:30px 0;'>
+        <a href='{detailLink}'
+           style='background-color:#f38d00;
+                  color:#ffffff;
+                  padding:12px 24px;
+                  text-decoration:none;
+                  border-radius:6px;
+                  display:inline-block;
+                  font-weight:bold;'>
+            查看訂單詳情
+        </a>
+    </p>
+
+    
+
+    
+
+    <hr style='margin:30px 0;' />
+
+    <p style='font-size:12px; color:#999;'>
+    此為系統自動發送信件，請勿直接回覆。<br/>
+    若您對訂單有任何疑問，歡迎聯繫官方客服。
+    </p>
+
+    <p style='font-size:12px; color:#999;'>
+    © {DateTime.Now.Year} 練吧 Fitness Bar. All Rights Reserved.
+    </p>
+
+</div>
+";
+
+            await SendEmail(toEmail, subject, body);
+        }
     }
 }
