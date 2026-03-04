@@ -638,9 +638,33 @@ namespace gym_api.Controllers.user
             }
         }
 
-        //重發驗證信
+        //取得並解析會員資料
+        //[Authorize]
+        //[HttpGet("me")]
+        //public async Task<IActionResult> GetMe()
+        //{
+        //    var userId = int.Parse(User.FindFirst("userId").Value);
 
-        [HttpPost("resend-verify-email")]
+        //    var user = await _context.UUsers
+        //        .Where(u => u.UserId == userId)
+        //        .Select(u => new
+        //        {
+        //            u.UserId,
+        //            u.Name,
+        //            u.Email,
+        //            u.Phone,
+        //            u.Address
+        //        })
+        //        .FirstOrDefaultAsync();
+
+        //    if (user == null)
+        //        return NotFound();
+
+        //    return Ok(user);
+        //}
+        
+        //重發驗證信
+                [HttpPost("resend-verify-email")]
         public async Task<IActionResult> ResendVerifyEmail([FromBody] UResendVerifyEmailDto dto)
         {
             var user = await _context.UUsers
