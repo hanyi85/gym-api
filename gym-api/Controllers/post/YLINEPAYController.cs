@@ -63,7 +63,7 @@ namespace gym_api.Controllers.post
                 var newJoin = new YJoinForm
                 {
                     EventId = dto.EventId,
-                    UserId = dto.UserId,
+                    UserId = dto.UserId == 0 ? null : dto.UserId,
                     Name = dto.Name,
                     Sex = sexValue,
                     Phone = dto.Phone,
@@ -125,7 +125,14 @@ namespace gym_api.Controllers.post
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "金流請求發起失敗", error = ex.Message });
+                // 這樣你會在瀏覽器 F12 看到到底是哪裡出錯 (例如：哪個欄位不能是 Null)
+                return StatusCode(500, new
+                {
+                    message = "伺服器內部出錯",
+                    error = ex.Message,
+                    stackTrace = ex.StackTrace,
+                    inner = ex.InnerException?.Message
+                });
             }
         }
 
@@ -156,14 +163,17 @@ namespace gym_api.Controllers.post
             }
             catch (Exception ex)
             {
+                // 這樣你會在瀏覽器 F12 看到到底是哪裡出錯 (例如：哪個欄位不能是 Null)
                 return StatusCode(500, new
                 {
-                    message = "確認流程發生錯誤",
+                    message = "伺服器內部出錯",
                     error = ex.Message,
+                    stackTrace = ex.StackTrace,
                     inner = ex.InnerException?.Message
                 });
             }
         }
+        
 
         // --- 私有輔助方法：SMTP 寄信 ---
         private async Task SendSuccessEmailAsync(YJoinForm join)
@@ -230,9 +240,16 @@ namespace gym_api.Controllers.post
         // --- 私有輔助方法：LINE Pay 簽章 ---
         private string GenerateSignature(string secret, string uri, string body, string nonce)
         {
+            // V3 規範：Secret + URI + Body + Nonce
             var signatureRaw = secret + uri + body + nonce;
-            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
-            return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(signatureRaw)));
+            var keyByte = Encoding.UTF8.GetBytes(secret);
+            var messageBytes = Encoding.UTF8.GetBytes(signatureRaw);
+
+            using (var hmacsha256 = new HMACSHA256(keyByte))
+            {
+                byte[] hashmessage = hmacsha256.ComputeHash(messageBytes);
+                return Convert.ToBase64String(hashmessage);
+            }
         }
     }
 }
