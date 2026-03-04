@@ -291,6 +291,6 @@ namespace gym_api.Controllers.post
             byte[] hashmessage = hmacsha256.ComputeHash(messageBytes);
             return Convert.ToBase64String(hashmessage);
         }
-        
+
     }
 }
