@@ -34,7 +34,7 @@ namespace gym_api.Controllers.meal
                 if (order == null)
                     return BadRequest("找不到訂單");
 
-                order.FOrderStatus = "已付款，待取餐";
+                order.FOrderStatus = "己付款，待取餐";
                 _context.SaveChanges();
 
             string merchantId = "3002607";
@@ -151,7 +151,7 @@ namespace gym_api.Controllers.meal
 
                 if (order != null)
                 {
-                    order.FOrderStatus = "信用卡付款成功，待取餐";
+                    order.FOrderStatus = "已付款，待取餐";
                     _context.SaveChanges();
                 }
             }
