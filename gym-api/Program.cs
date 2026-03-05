@@ -127,6 +127,7 @@ builder.Services.AddAuthentication("Bearer")
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHttpClient();
 
 var app = builder.Build();
 
