@@ -1,14 +1,18 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using gym_api.Models; // 請確保指向你的 DbContext 所在的命名空間
+using gym_api.Models;
+using Newtonsoft.Json;
+using System.Net.Http;
 
 namespace gym_api.Controllers.post
 {
     [Route("api/[controller]")]
-    [ApiController] // 標註為 Web API 模式
+    [ApiController]
     public class YCustomerServiceController : ControllerBase
     {
-        private readonly dbFitness2Context _context; // 請將 YourDbContext 改成你實際的 DbContext 名稱
+        private readonly dbFitness2Context _context;
+        // Google reCAPTCHA Secret Key
+        private readonly string _reCaptchaSecret = "6LcNAHcsAAAAAAj_BM62lS9Ab6Kplzo0B8wPq1X_";
 
         public YCustomerServiceController(dbFitness2Context context)
         {
@@ -16,7 +20,7 @@ namespace gym_api.Controllers.post
         }
 
         /// <summary>
-        /// 獲取所有啟用的問題類別 (用於前端下拉選單)
+        /// 獲取所有啟用的問題類別
         /// </summary>
         [HttpGet("Categories")]
         public async Task<IActionResult> GetCategories()
@@ -34,7 +38,7 @@ namespace gym_api.Controllers.post
         }
 
         /// <summary>
-        /// 接收前端傳回的客戶回報表單
+        /// 接收客戶回報表單 (含 reCAPTCHA 驗證)
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Post([FromForm] CustomerServiceUploadDto uploadData)
@@ -44,6 +48,29 @@ namespace gym_api.Controllers.post
                 return BadRequest("資料驗證失敗");
             }
 
+            // 1. Google reCAPTCHA 驗證
+            if (string.IsNullOrEmpty(uploadData.CaptchaToken))
+            {
+                return BadRequest(new { success = false, message = "請完成機器人驗證" });
+            }
+
+            using var client = new HttpClient();
+            var content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("secret", _reCaptchaSecret),
+                new KeyValuePair<string, string>("response", uploadData.CaptchaToken)
+            });
+
+            var response = await client.PostAsync("https://www.google.com/recaptcha/api/siteverify", content);
+            var resultJson = await response.Content.ReadAsStringAsync();
+            var captchaResult = JsonConvert.DeserializeObject<ReCaptchaInternalResult>(resultJson);
+
+            if (captchaResult == null || !captchaResult.Success)
+            {
+                return BadRequest(new { success = false, message = "機器人驗證失敗，請重試" });
+            }
+
+            // 2. 執行資料存檔
             try
             {
                 var newRecord = new YCustomerService
@@ -53,13 +80,12 @@ namespace gym_api.Controllers.post
                     Email = uploadData.Email,
                     QuestionCategoryId = uploadData.QuestionCategoryId,
                     Detail = uploadData.Detail,
-                    Status = 0,               // 預設 0: 待處理
-                    CreatedAt = DateTime.Now, // 對應 SQL getdate()
-                    IsDeleted = false,        // 預設未刪除
-                    Sex = 0                   // 如果前端沒傳，預設給 0 或可加欄位接收
+                    Status = 0,
+                    CreatedAt = DateTime.Now,
+                    IsDeleted = false,
+                    Sex = 0
                 };
 
-                // 處理圖片轉換：將前端上傳的檔案轉為 byte[] 存入資料庫 image 欄位
                 if (uploadData.ImageFile != null && uploadData.ImageFile.Length > 0)
                 {
                     using (var ms = new MemoryStream())
@@ -76,22 +102,29 @@ namespace gym_api.Controllers.post
             }
             catch (Exception ex)
             {
-                // 這裡可以記錄錯誤日誌 (Logger)
                 return StatusCode(500, $"伺服器發生錯誤: {ex.Message}");
             }
         }
-    }
 
-    /// <summary>
-    /// 定義接收資料的 DTO (Data Transfer Object)
-    /// </summary>
-    public class CustomerServiceUploadDto
-    {
-        public string Name { get; set; }
-        public string Phone { get; set; }
-        public string Email { get; set; }
-        public int QuestionCategoryId { get; set; }
-        public string Detail { get; set; }
-        public IFormFile? ImageFile { get; set; } // 接收圖片檔案
+        // --- 巢狀類別：避免 CS0101 命名衝突 ---
+
+        public class CustomerServiceUploadDto
+        {
+            public string Name { get; set; }
+            public string Phone { get; set; }
+            public string Email { get; set; }
+            public int QuestionCategoryId { get; set; }
+            public string Detail { get; set; }
+            public string? CaptchaToken { get; set; } // 新增：接收 reCAPTCHA Token
+            public IFormFile? ImageFile { get; set; }
+        }
+
+        private class ReCaptchaInternalResult
+        {
+            [JsonProperty("success")]
+            public bool Success { get; set; }
+            [JsonProperty("error-codes")]
+            public List<string> ErrorCodes { get; set; }
+        }
     }
 }
