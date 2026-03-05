@@ -333,5 +333,28 @@ namespace gym_api.Controllers.course
             if (data == null) return NotFound("找不到訂單或無權限");
             return Ok(data);
         }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var booking = await (
+                from b in _context.CCourseBookings.AsNoTracking()
+                join s in _context.CCourseSchedules.AsNoTracking()
+                    on b.ScheduleId equals s.ScheduleId
+                where b.CourseBookingId == id
+                select new
+                {
+                    courseBookingId = b.CourseBookingId,
+                    paymentStatus = b.PaymentStatus,
+                    status = b.Status,
+                    finalPrice = b.FinalPrice,
+                    scheduleId = b.ScheduleId,
+                    startTime = s.StartTime
+                }
+            ).FirstOrDefaultAsync();
+
+            if (booking == null) return NotFound();
+            return Ok(booking);
+        }
     }
 }

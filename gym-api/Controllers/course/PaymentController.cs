@@ -238,7 +238,8 @@ namespace gym_api.Controllers.course
 
             // 7) Redirect 回前端成功頁（帶 paid + bookingId + orderId）
             var orderId = $"BK{bookingId.ToString().PadLeft(9, '0')}";
-            var url = $"http://localhost:5173/courses/booking-success?paid={(success ? "true" : "false")}&bookingId={bookingId}&orderId={orderId}";
+            var url = $"http://localhost:5173/courses/booking-success?bookingId={bookingId}";
+
             return Redirect(url);
         }
         [HttpGet("booking-id-by-schedule")]
