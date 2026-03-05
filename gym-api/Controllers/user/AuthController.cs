@@ -1,9 +1,11 @@
-﻿using gym_api.Models;
+﻿using Google.Apis.Auth;
+using gym_api.Models;
 using gym_api.Models.UDTO;
 using gym_api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages.Manage;
@@ -17,9 +19,9 @@ using System.Net.Mail;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-using Google.Apis.Auth;
 namespace gym_api.Controllers.user
 {
     [ApiController]
@@ -44,8 +46,15 @@ namespace gym_api.Controllers.user
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] ULoginDto dto)
         {
+            if (string.IsNullOrWhiteSpace(dto.Email) ||
+    string.IsNullOrWhiteSpace(dto.Password))
+            {
+                return BadRequest("請輸入帳號密碼");
+            }
+
+            var email = dto.Email.ToLower();
             var user = await _context.UUsers
-                .FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower());
+    .FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower());
 
             if (user == null)
                 return Unauthorized("帳號或密碼錯誤");
@@ -99,7 +108,10 @@ namespace gym_api.Controllers.user
                     message = "請先完成電子郵件驗證"
                 });
             }
-
+            if (user.Password == null)
+            {
+                return BadRequest("此帳號請使用 LINE 登入，或先設定密碼");
+            }
             var token = _jwtService.GenerateAccessToken(user);
 
             return Ok(new
@@ -107,9 +119,30 @@ namespace gym_api.Controllers.user
                 token,
                 userId = user.UserId,
                 name = user.Name,
-                isEmailVerified = user.IsEmailVerified
+                isEmailVerified = user.IsEmailVerified,
+                showWelcomeMessage = false
             });
         }
+        //忘記密碼
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword(UForgotPasswordDto dto)
+        {
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(x => x.Email == dto.Email.ToLower());
+
+            if (user == null)
+                return Ok(); // 不暴露帳號存在與否
+
+            var token = _jwtService.GenerateResetPasswordToken(user);
+            var encodedToken = WebUtility.UrlEncode(token);
+
+            var link = $"http://localhost:5173/reset-password?token={encodedToken}";
+
+            await _emailService.SendResetPasswordEmail(user.Email, link);
+
+            return Ok(new { message = "若帳號存在，已寄出重設信" });
+        }
+
 
         //google登入
         [HttpPost("google-login")]
@@ -144,7 +177,7 @@ namespace gym_api.Controllers.user
             if (user != null && user.GoogleId == null)
             {
                 user.GoogleId = googleId;
-                user.LoginProvider = "Google";
+              
                 user.IsEmailVerified = true;
                 user.EmailVerifiedAt = DateTime.UtcNow;
 
@@ -155,11 +188,10 @@ namespace gym_api.Controllers.user
                 user = new UUser
                 {
                     Name = payload.Name,
-                    Account = payload.Email,
                     Email = userEmail,
                     GoogleId = googleId,
+                    Account = userEmail,
 
-                    LoginProvider = "Google",
                     IsEmailVerified = true,
                     EmailVerifiedAt = DateTime.UtcNow,
                     CreatedDate = DateTime.UtcNow,
@@ -183,29 +215,11 @@ namespace gym_api.Controllers.user
                 userId = user.UserId,
                 name = user.Name,
                 isEmailVerified = true,
-                provider = "Google"
+                provider = "Google",
+                showWelcomeMessage = true
             });
         }
-        //忘記密碼
-        [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword(UForgotPasswordDto dto)
-        {
-            var user = await _context.UUsers
-                .FirstOrDefaultAsync(x => x.Email == dto.Email.ToLower());
-
-            if (user == null)
-                return Ok(); // 不暴露帳號存在與否
-
-            var token = _jwtService.GenerateResetPasswordToken(user);
-            var encodedToken = WebUtility.UrlEncode(token);
-
-            var link = $"http://localhost:5173/reset-password?token={encodedToken}";
-
-            await _emailService.SendResetPasswordEmail(user.Email, link);
-
-            return Ok(new { message = "若帳號存在，已寄出重設信" });
-        }
-
+        
         //line登入
         [HttpPost("line-login")]
         public async Task<IActionResult> LineLogin([FromBody] ULineLoginDto dto)
@@ -222,78 +236,193 @@ namespace gym_api.Controllers.user
     };
 
             var content = new FormUrlEncodedContent(values);
-
             var response = await client.PostAsync("https://api.line.me/oauth2/v2.1/token", content);
+            var json = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
-                return Unauthorized("LINE Token 交換失敗");
+                return BadRequest($"LINE Token 交換失敗: {json}");
 
-            var json = await response.Content.ReadAsStringAsync();
-            var tokenData = System.Text.Json.JsonDocument.Parse(json);
+            var tokenData = JsonDocument.Parse(json);
 
-            var idToken = tokenData.RootElement.GetProperty("id_token").GetString();
+            if (!tokenData.RootElement.TryGetProperty("id_token", out var idTokenElement))
+                return BadRequest("沒有取得 id_token");
 
+            var idToken = idTokenElement.GetString();
+
+            if (string.IsNullOrEmpty(idToken))
+            {
+                return BadRequest("LINE id_token 為空");
+            }
+
+            JwtSecurityToken jwtToken;
+
+            try
+            {
             // 解析 id_token
-            var handler = new JwtSecurityTokenHandler();
-            var jwtToken = handler.ReadJwtToken(idToken);
+                var handler = new JwtSecurityTokenHandler();
+                jwtToken = handler.ReadJwtToken(idToken);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("LINE id_token 解析失敗: " + ex.Message);
+            }
+
+            
 
             var email = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
             var lineUserId = jwtToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
             var name = jwtToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
-
+            var picture = jwtToken.Claims.FirstOrDefault(c => c.Type == "picture")?.Value;
             if (string.IsNullOrEmpty(lineUserId))
                 return Unauthorized("LINE 使用者資訊錯誤");
 
+            // 1️ 先用 LineId 查
             var user = await _context.UUsers
-                .FirstOrDefaultAsync(u => u.LineId == lineUserId || u.Email == email);
+                .FirstOrDefaultAsync(u => u.LineId == lineUserId);
 
-            if (user != null && user.LineId == null)
+            if (user != null)
             {
-                user.LineId = lineUserId;
-                user.LoginProvider = "LINE";
-                user.IsEmailVerified = true;
-                user.EmailVerifiedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
+                if (user.LineId == null)
+                {
+                    user.LineId = lineUserId;
+                    await _context.SaveChangesAsync();
+                }
+                var token = _jwtService.GenerateAccessToken(user);
+                return Ok(new
+                {
+                    token,
+                    userId = user.UserId,
+                    name = user.Name,
+                    provider = "LINE"
+                });
             }
+
+            // 2️ 如果沒有 Email → 要求補填
+            if (string.IsNullOrEmpty(email))
+            {
+                email = $"line_{lineUserId}@temp.local";
+
+                user = new UUser
+                {
+                    Account = $"line_{lineUserId}",
+                    Name = name ?? "",
+                    Email = email,
+                    LineId = lineUserId,
+                    IsEmailVerified = false,
+                    CreatedDate = DateTime.UtcNow,
+                    Status = 1,
+
+                    Address = "",
+                    Phone = "",
+                    Sex = "",
+                    BirthDate = DateOnly.FromDateTime(DateTime.Today)
+                };
+
+                _context.UUsers.Add(user);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    needEmail = true,
+                    lineUserId = lineUserId,
+                    name = name,
+                    picture = picture
+                });
+            }
+
+            if (!string.IsNullOrEmpty(email))
+            {
+                email = email.ToLower();
+            }
+
+            // 3️ 有 Email → 用 Email 查
+            user = await _context.UUsers
+    .FirstOrDefaultAsync(u => u.Email == email);
+
+
 
             if (user == null)
             {
                 user = new UUser
                 {
+                    Account = $"line_{lineUserId}",
                     Name = name ?? "",
-                    Email = email ?? "",
-                    Account = email ?? lineUserId,
+                    Email = email,
                     LineId = lineUserId,
-                    LoginProvider = "LINE",
+
                     IsEmailVerified = true,
                     EmailVerifiedAt = DateTime.UtcNow,
                     CreatedDate = DateTime.UtcNow,
+                    Status = 1,
+
                     Address = "",
                     Phone = "",
                     Sex = "",
-                    BirthDate = DateOnly.FromDateTime(DateTime.Today),
-                    Status = 1
+                    BirthDate = DateOnly.FromDateTime(DateTime.Today)
                 };
 
                 _context.UUsers.Add(user);
                 await _context.SaveChangesAsync();
             }
 
-            var token = _jwtService.GenerateAccessToken(user);
+            var accessToken = _jwtService.GenerateAccessToken(user);
 
             return Ok(new
             {
-                token,
+                token = accessToken,
                 userId = user.UserId,
                 name = user.Name,
                 provider = "LINE"
             });
         }
 
+        //完成line會員註冊
+        [HttpPost("complete-line-register")]
+        public async Task<IActionResult> CompleteLineRegister(
+     [FromBody] UCompleteLineRegisterRequest request)
+        {
+            if (string.IsNullOrEmpty(request.LineUserId) ||
+                string.IsNullOrEmpty(request.Email))
+            {
+                return BadRequest("資料不完整");
+            }
 
+            var email = request.Email.ToLower();
+
+            var user = await _context.UUsers
+                .FirstOrDefaultAsync(x => x.LineId == request.LineUserId);
+
+            if (user == null)
+                return BadRequest("找不到 LINE 使用者");
+
+            // 已完成註冊
+            if (!user.Email.EndsWith("@temp.local"))
+                return BadRequest("此 LINE 帳號已完成註冊");
+
+            var emailExist = await _context.UUsers
+                .AnyAsync(x => x.Email == email);
+
+            if (emailExist)
+                return BadRequest("Email 已被使用");
+
+            user.Email = email;
+            user.IsEmailVerified = true;
+            user.EmailVerifiedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var token = _jwtService.GenerateAccessToken(user);
+
+            return Ok(new
+            {
+                message = "註冊成功",
+                token,
+                userId = user.UserId,
+                name = user.Name,
+                provider = "LINE"
+            });
+        }
         //重設密碼 API
-
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(UResetPasswordDto dto)
         {
@@ -364,9 +493,8 @@ namespace gym_api.Controllers.user
             var user = new UUser
             {
                 // 帳號資料
-                Email = dto.Email.ToLower(),
                 Account = dto.Email.ToLower(),
-                LoginProvider = "Email",
+                Email = dto.Email.ToLower(),
 
                 // 密碼
                 Password = Convert.ToBase64String(
@@ -399,7 +527,7 @@ namespace gym_api.Controllers.user
             var verifyLink = $"http://localhost:5173/users/verify-email?token={encodedToken}";
 
             // 寄信
-            await _emailService.SendVerifyEmail(dto.Email, verifyLink);
+            _ = Task.Run(() => _emailService.SendVerifyEmail(dto.Email, verifyLink));
 
             // 暫時改成回傳連結（測試用）
             return Ok(new
@@ -510,9 +638,33 @@ namespace gym_api.Controllers.user
             }
         }
 
-        //重發驗證信
+        //取得並解析會員資料
+        //[Authorize]
+        //[HttpGet("me")]
+        //public async Task<IActionResult> GetMe()
+        //{
+        //    var userId = int.Parse(User.FindFirst("userId").Value);
 
-        [HttpPost("resend-verify-email")]
+        //    var user = await _context.UUsers
+        //        .Where(u => u.UserId == userId)
+        //        .Select(u => new
+        //        {
+        //            u.UserId,
+        //            u.Name,
+        //            u.Email,
+        //            u.Phone,
+        //            u.Address
+        //        })
+        //        .FirstOrDefaultAsync();
+
+        //    if (user == null)
+        //        return NotFound();
+
+        //    return Ok(user);
+        //}
+        
+        //重發驗證信
+                [HttpPost("resend-verify-email")]
         public async Task<IActionResult> ResendVerifyEmail([FromBody] UResendVerifyEmailDto dto)
         {
             var user = await _context.UUsers
@@ -523,7 +675,14 @@ namespace gym_api.Controllers.user
                 return Ok(new { success = true });
 
             if (user.IsEmailVerified)
-                return BadRequest(new { message = "帳號已完成驗證" });
+            {
+                return Ok(new
+                {
+                    success = true,
+                    alreadyVerified = true,
+                    message = "帳號已完成驗證"
+                });
+            }
 
             var verifyToken = GenerateEmailVerifyToken(user);
             var encodedToken = WebUtility.UrlEncode(verifyToken);

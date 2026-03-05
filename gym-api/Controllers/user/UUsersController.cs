@@ -30,12 +30,20 @@ namespace gym_api.Controllers.user
             _context = context;
         }
 
+        private int? GetUserId()
+        {
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (claim == null) return null;
+            return int.Parse(claim.Value);
+        }
 
         [Authorize]
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized();
 
             var user = await _context.UUsers.FindAsync(userId);
 
@@ -50,8 +58,13 @@ namespace gym_api.Controllers.user
                 user.BirthDate,
                 user.Address,
                 Joined = user.CreatedDate.ToString("yyyy 年 M 月"),
-                Image = user.Image != null ? Convert.ToBase64String(user.Image) : null
-            });
+                Image = user.Image != null ? Convert.ToBase64String(user.Image) : null,
+
+                HasPassword =
+    !string.IsNullOrEmpty(user.Password) &&
+    user.PasswordSalt != null &&
+    user.PasswordSalt.Length > 1
+        });
         }
 
         [Authorize]
@@ -91,32 +104,64 @@ namespace gym_api.Controllers.user
         [HttpPut("change-password")]
         public async Task<IActionResult> ChangePassword(UChangePasswordDto dto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized();
 
             var user = await _context.UUsers.FindAsync(userId);
 
             if (user == null)
                 return NotFound("找不到使用者");
 
-            if (user.PasswordSalt == null 
-                || user.PasswordSalt.Length == 0 
-                || user.PasswordSalt.All(b => b == 0))
+            if (string.IsNullOrEmpty(user.Password))
+                return BadRequest("此帳號尚未設定密碼");
+
+            bool isLegacyUser =
+                user.PasswordSalt != null &&
+                user.PasswordSalt.Length == 1 &&
+                user.PasswordSalt[0] == 0x00;
+
+            bool isHashedUser =
+                user.PasswordSalt != null &&
+                user.PasswordSalt.Length == 128;
+
+            bool isThirdPartyUser =
+                user.PasswordSalt == null;
+
+            // ===== 第三方帳號禁止使用 change-password =====
+            if (isThirdPartyUser)
+                return BadRequest("此帳號尚未設定密碼");
+
+            // ===== 舊會員（明文密碼）=====
+            if (isLegacyUser)
             {
-                return BadRequest("帳號尚未完成密碼升級，請重新登入");
+                if (user.Password != dto.OldPassword)
+                    return BadRequest("舊密碼錯誤");
             }
-            using var hmac = new HMACSHA512(user.PasswordSalt);
-
-            var oldHash = Convert.ToBase64String(
-                hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.OldPassword))
-            );
-
-            if (!CryptographicOperations.FixedTimeEquals(
-    Convert.FromBase64String(oldHash),
-    Convert.FromBase64String(user.Password)))
+            // ===== 新會員（已加密）=====
+            else if (isHashedUser)
             {
-                return BadRequest("舊密碼錯誤");
+                using var hmac = new HMACSHA512(user.PasswordSalt);
+
+                var oldHashBytes = hmac.ComputeHash(
+                    Encoding.UTF8.GetBytes(dto.OldPassword)
+                );
+
+                var storedHashBytes = Convert.FromBase64String(user.Password);
+
+                if (!CryptographicOperations.FixedTimeEquals(
+                    oldHashBytes,
+                    storedHashBytes))
+                {
+                    return BadRequest("舊密碼錯誤");
+                }
+            }
+            else
+            {
+                return BadRequest("帳號資料異常");
             }
 
+            // ===== 設定新密碼（統一升級為加密）=====
             using var newHmac = new HMACSHA512();
 
             user.PasswordSalt = newHmac.Key;
@@ -128,13 +173,51 @@ namespace gym_api.Controllers.user
 
             return Ok("密碼修改成功");
         }
-       
+
+        [Authorize]
+        [HttpPost("set-password")]
+        public async Task<IActionResult> SetPassword(USetPasswordDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized();
+
+            var user = await _context.UUsers.FindAsync(userId);
+
+            if (user == null)
+                return NotFound("找不到使用者");
+
+            // 已經有密碼的帳號不能用這個
+            if (!string.IsNullOrEmpty(user.Password))
+                return BadRequest("此帳號已設定密碼");
+
+          
+
+            // 建立新密碼
+            if (string.IsNullOrWhiteSpace(dto.NewPassword))
+                return BadRequest("新密碼不可為空");
+            if (dto.NewPassword.Length < 6)
+                return BadRequest("密碼至少 6 碼");
+            using var hmac = new HMACSHA512();
+
+            user.PasswordSalt = hmac.Key;
+            user.Password = Convert.ToBase64String(
+                hmac.ComputeHash(Encoding.UTF8.GetBytes(dto.NewPassword))
+            );
+
+
+            await _context.SaveChangesAsync();
+
+            return Ok("密碼設定成功");
+        }
 
         [Authorize]
         [HttpPost("upload-avatar")]
         public async Task<IActionResult> UploadAvatar(IFormFile file)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized();
             var user = await _context.UUsers.FindAsync(userId);
 
             if (user == null) return NotFound();
@@ -147,8 +230,12 @@ namespace gym_api.Controllers.user
 
             var allowedTypes = new[] { "image/jpeg", "image/png" };
 
-            if (!allowedTypes.Contains(file.ContentType))
-                return BadRequest("只允許 JPG 或 PNG");
+            var extension = Path.GetExtension(file.FileName).ToLower();
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+
+            if (!allowedExtensions.Contains(extension))
+                return BadRequest("檔案格式錯誤");
 
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms);
@@ -164,7 +251,9 @@ namespace gym_api.Controllers.user
         [HttpDelete("avatar")]
         public async Task<IActionResult> RemoveAvatar()
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized();
             var user = await _context.UUsers.FindAsync(userId);
 
             if (user == null) return NotFound();
