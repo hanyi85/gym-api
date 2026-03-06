@@ -485,9 +485,19 @@ namespace gym_api.Controllers.user
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest(new { message = "Email 不可為空" });
+            try
+            {
+                var mail = new MailAddress(dto.Email);
+            }
+            catch
+            {
+                return BadRequest(new { message = "Email 格式錯誤" });
+            }
+
             if (await _context.UUsers.AnyAsync(x => x.Email == dto.Email))
                 return BadRequest("信箱已被註冊");
-
             using var hmac = new HMACSHA512();
 
             var user = new UUser
@@ -569,7 +579,7 @@ namespace gym_api.Controllers.user
         }
 
 
-        //登入驗證 token
+        //驗證 token
         [HttpGet("verify-email")]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
@@ -586,11 +596,12 @@ namespace gym_api.Controllers.user
                     ValidateAudience = true,
                     ValidateIssuerSigningKey = true,
                     ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero,
                     ValidIssuer = _config["Jwt:Issuer"],
                     ValidAudience = _config["Jwt:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(key)
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ClockSkew = TimeSpan.FromMinutes(5)
                 }, out _);
+
 
                 //  檢查用途
                 var purpose = claims.FindFirst("purpose")?.Value;
