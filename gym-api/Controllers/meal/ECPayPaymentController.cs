@@ -52,7 +52,8 @@ namespace gym_api.Controllers.meal
                     { "TotalAmount", order.FTotalAmount.ToString() },
                     { "TradeDesc", "健身餐訂單" },
                     { "ItemName", "健身餐一批" },
-                    { "ReturnURL", "https://indehiscent-bristol-enragedly.ngrok-free.dev/api/ECPayPayment/Callback" },
+                    //{ "ReturnURL", "https://indehiscent-bristol-enragedly.ngrok-free.dev/api/ECPayPayment/Callback" },//我
+                    { "ReturnURL", "https://organometallic-cistaceous-akilah.ngrok-free.dev/api/ECPayPayment/Callback" },//共用
                     { "ClientBackURL", "http://localhost:5173/meals/result/" + dto.OrderId },
                     { "ChoosePayment", "ALL" },
                     { "EncryptType", "1" }
