@@ -52,7 +52,8 @@ namespace gym_api.Controllers.meal
                     { "TotalAmount", order.FTotalAmount.ToString() },
                     { "TradeDesc", "健身餐訂單" },
                     { "ItemName", "健身餐一批" },
-                    { "ReturnURL", "https://indehiscent-bristol-enragedly.ngrok-free.dev/api/ECPayPayment/Callback" },
+                    //{ "ReturnURL", "https://indehiscent-bristol-enragedly.ngrok-free.dev/api/ECPayPayment/Callback" },//我
+                    { "ReturnURL", "https://organometallic-cistaceous-akilah.ngrok-free.dev/api/ECPayPayment/Callback" },//共用
                     { "ClientBackURL", "http://localhost:5173/meals/result/" + dto.OrderId },
                     { "ChoosePayment", "ALL" },
                     { "EncryptType", "1" }
@@ -139,22 +140,36 @@ namespace gym_api.Controllers.meal
                 return Content("0|CheckMacValue 驗證失敗");
             }
 
-            // 2️ 判斷是否付款成功
+            // 取得訂單編號
+            string merchantTradeNo = form["MerchantTradeNo"];
+            int orderId = ParseOrderId(merchantTradeNo);
+
+            Console.WriteLine("解析出的 orderId = " + orderId);
+
+            var order = _context.TMealOrders.FirstOrDefault(o => o.FOrderId == orderId);
+
+            if (order == null)
+            {
+                Console.WriteLine("找不到訂單");
+                return Content("1|OK");
+            }
+
+            // 2️判斷付款結果
             if (form.ContainsKey("RtnCode") && form["RtnCode"] == "1")
             {
-                string merchantTradeNo = form["MerchantTradeNo"];
-                int orderId = ParseOrderId(merchantTradeNo);
-                Console.WriteLine("解析出的 orderId = " + orderId);
+                Console.WriteLine("付款成功");
 
-                var order = _context.TMealOrders.FirstOrDefault(o => o.FOrderId == orderId);
-                Console.WriteLine(order == null ? "找不到訂單" : " 找到訂單");
-
-                if (order != null)
-                {
-                    order.FOrderStatus = "已付款，待取餐";
-                    _context.SaveChanges();
-                }
+                order.FOrderStatus = "已付款，待取餐";
+                
             }
+            else
+            {
+                Console.WriteLine("付款失敗");
+
+                order.FOrderStatus = "付款失敗";
+            }
+
+            _context.SaveChanges();
 
             // 一定要回傳 1|OK
             return Content("1|OK");
